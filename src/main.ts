@@ -1,8 +1,13 @@
-import { Parent } from './misc';
+import { myReducer } from './myreducer';
 
-const myReducer = (parent: Parent): Parent => {
-    parent.str = 'abc';
-    parent.str2 = 'def';
-
-    return parent;
-}
+console.log(
+    'Result of reducer',
+    myReducer({
+        str: '123',
+        str2: '456',
+        nums: [0, 1, 2],
+        child: {
+            str: '789'
+        }
+    })
+);
