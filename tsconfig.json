@@ -6,6 +6,7 @@
             { "transform": "./transforms/reducer-transform.ts" },
         ],
         "target": "ES2021",
-        "moduleResolution": "node"
+        "moduleResolution": "node",
+        "strict": true
     }
 }

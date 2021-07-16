@@ -36,7 +36,7 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                         const objTree = buildObjTree(assignments);
                         printObjTree(objTree);
                         if (objTree.children.length > 1) {
-                            throw Error("Should only modify one variable in a reducer");
+                            throw Error("Should only modify one variable in a reducer:  " + objTree.children.map(ch => ch.name.text));
                         }
                         if (objTree.children.length === 0) {
                             throw Error("Your reducer doesn't modify anything");
@@ -88,14 +88,23 @@ function parseAssignments(assignments: ts.BinaryExpression[]): Assignment[] {
     return assignments.map(assignment => {
         const memberChain: ts.MemberName[] = [];
 
-        let expr = assignment.left;
-        while (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
-            const propAccessExpr = expr as ts.PropertyAccessExpression;
-            memberChain.unshift(propAccessExpr.name);
-            expr = propAccessExpr.expression;
-        }
-        if (expr.kind === ts.SyntaxKind.Identifier) {
-            memberChain.unshift(expr as ts.Identifier);
+        let expr: ts.Expression | null = assignment.left;
+        while (expr) {
+            if (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
+                const propAccessExpr = expr as ts.PropertyAccessExpression;    
+                memberChain.unshift(propAccessExpr.name);
+                expr = propAccessExpr.expression;
+            }
+            else if (expr.kind === ts.SyntaxKind.NonNullExpression) {
+                expr = (expr as ts.NonNullExpression).expression;
+            }
+            else if (expr.kind === ts.SyntaxKind.Identifier) {
+                memberChain.unshift(expr as ts.Identifier);
+                expr = null;
+            }
+            else {
+                throw new Error('Unhandled syntax kind ' + strKind(expr.kind))
+            }
         }
 
         return {
@@ -119,7 +128,7 @@ function checkConflictingAssignments(assignments: Assignment[]) {
 
 function buildObjTree(assignments: Assignment[]): ObjTreeNode {
     const root: ObjTreeNode = {
-        name: null,
+        name: null as any as ts.MemberName,
         children: [],
         path: []
     };
@@ -157,6 +166,7 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
         );
     }
     else {
+        if (!objTree.assignment) throw new Error(`Expected member ${objTree.name} to be assigned a value`);
         return ctx.factory.createPropertyAssignment(objTree.name, objTree.assignment.value);
     }
 }
