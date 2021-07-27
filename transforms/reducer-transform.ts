@@ -10,7 +10,15 @@ interface ObjTreeNode {
     name: ts.MemberName,
     path: ts.MemberName[],
     assignment?: Assignment;
+    arrayOperation?: ArrayOperation;
     children: ObjTreeNode[];
+}
+
+const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
+interface ArrayOperation {
+    funcName: string,
+    memberChain: ts.MemberName[];
+    args: ts.Expression[];
 }
 
 export default function(_program: ts.Program, _pluginOptions: object) {
@@ -22,18 +30,19 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                 }
 
                 try {
-                    // console.log(strKind(node.kind));
-                    // console.log(node.getFullText());
-                    // console.log();
+                    console.log(strKind(node.kind));
+                    console.log(node.getFullText());
+                    console.log();
 
                     if (node.kind === ts.SyntaxKind.Block) {
                         //console.log('block has parent type ', strKind(node.parent.kind));
 
                         const block = node as ts.Block;
-                        const assignments = parseAssignments(getAssignmentsInBlock(block));
+                        const assignments = getAssignmentsInBlock(block);
                         checkConflictingAssignments(assignments);
+                        const arrayOps = getArrayOpsInBlock(block);
 
-                        const objTree = buildObjTree(assignments);
+                        const objTree = buildObjTree(assignments, arrayOps);
                         printObjTree(objTree);
                         if (objTree.children.length > 1) {
                             throw Error("Should only modify one variable in a reducer:  " + objTree.children.map(ch => ch.name.text));
@@ -67,7 +76,7 @@ export default function(_program: ts.Program, _pluginOptions: object) {
 
 // Get all the binary expressions which represent assignments within a block
 function getAssignmentsInBlock(block: ts.Block) {
-    const assignments: ts.BinaryExpression[] = [];
+    const assignments: Assignment[] = [];
 
     block.statements.forEach(statement => {
         if (statement.kind === ts.SyntaxKind.ExpressionStatement) {
@@ -75,7 +84,11 @@ function getAssignmentsInBlock(block: ts.Block) {
             if (exprStatement.expression.kind === ts.SyntaxKind.BinaryExpression) {
                 const binaryExpr = exprStatement.expression as ts.BinaryExpression;
                 if (binaryExpr.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-                    assignments.push(binaryExpr);
+                    assignments.push({
+                        memberChain: parseMemberChain(binaryExpr.left),
+                        value: binaryExpr.right,
+                        binaryExpr
+                    });
                 }
             }
         }
@@ -83,36 +96,53 @@ function getAssignmentsInBlock(block: ts.Block) {
     return assignments;
 }
 
-// Parse a set of binary expressions representing assignments into a more useful format
-function parseAssignments(assignments: ts.BinaryExpression[]): Assignment[] {
-    return assignments.map(assignment => {
-        const memberChain: ts.MemberName[] = [];
+function getArrayOpsInBlock(block: ts.Block) {
+    const arrayOps: ArrayOperation[] = [];
 
-        let expr: ts.Expression | null = assignment.left;
-        while (expr) {
-            if (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
-                const propAccessExpr = expr as ts.PropertyAccessExpression;    
-                memberChain.unshift(propAccessExpr.name);
-                expr = propAccessExpr.expression;
+    block.statements.forEach(statement => {
+        if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
+        const exprStatement = statement as ts.ExpressionStatement;
+        exprStatement.getChildren().forEach(child => {
+            if (child.kind !== ts.SyntaxKind.CallExpression) return;
+            const callExpr = child as ts.CallExpression;
+            if (callExpr.expression.kind !== ts.SyntaxKind.PropertyAccessExpression) return;
+            const propAccessExpr = callExpr.expression as ts.PropertyAccessExpression;
+            const funcName = propAccessExpr.name.getText();
+            if (supportedArrayOps.includes(funcName)) {
+                const memberChain = parseMemberChain(propAccessExpr);
+                memberChain.pop(); // Remove the name of the function
+                arrayOps.push({
+                    funcName,
+                    args: callExpr.arguments.map(arg => arg),
+                    memberChain
+                });
             }
-            else if (expr.kind === ts.SyntaxKind.NonNullExpression) {
-                expr = (expr as ts.NonNullExpression).expression;
-            }
-            else if (expr.kind === ts.SyntaxKind.Identifier) {
-                memberChain.unshift(expr as ts.Identifier);
-                expr = null;
-            }
-            else {
-                throw new Error('Unhandled syntax kind ' + strKind(expr.kind))
-            }
-        }
-
-        return {
-            memberChain,
-            value: assignment.right,
-            binaryExpr: assignment
-        };
+        });
     });
+    return arrayOps;
+}
+
+function parseMemberChain(initExpr: ts.Expression) {
+    const memberChain: ts.MemberName[] = [];
+    let expr: ts.Expression | null = initExpr;
+    while (expr) {
+        if (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
+            const propAccessExpr = expr as ts.PropertyAccessExpression;    
+            memberChain.unshift(propAccessExpr.name);
+            expr = propAccessExpr.expression;
+        }
+        else if (expr.kind === ts.SyntaxKind.NonNullExpression) {
+            expr = (expr as ts.NonNullExpression).expression;
+        }
+        else if (expr.kind === ts.SyntaxKind.Identifier) {
+            memberChain.unshift(expr as ts.Identifier);
+            expr = null;
+        }
+        else {
+            throw new Error('Unhandled syntax kind ' + strKind(expr.kind))
+        }
+    }
+    return memberChain;
 }
 
 // Throw an error if multiple assignments cannot both be performed
@@ -126,7 +156,7 @@ function checkConflictingAssignments(assignments: Assignment[]) {
     })
 }
 
-function buildObjTree(assignments: Assignment[]): ObjTreeNode {
+function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): ObjTreeNode {
     const root: ObjTreeNode = {
         name: null as any as ts.MemberName,
         children: [],
@@ -150,6 +180,25 @@ function buildObjTree(assignments: Assignment[]): ObjTreeNode {
             currentNode = childNode;
         })
     });
+    // TODO very similar to above... generalise?
+    arrayOps.forEach(arrayOp => {
+        let currentNode: ObjTreeNode = root;
+        arrayOp.memberChain.forEach((member, idx) => {
+            let childNode = currentNode.children.find(child => child.name.getText() === member.getText());
+            const isLast = idx === (arrayOp.memberChain.length - 1);
+            if (!childNode) {
+                childNode = {
+                    name: member,
+                    children: [],
+                    path: [...currentNode.path, member],
+                    ...(isLast ? { arrayOperation: arrayOp } : {})
+                };
+                currentNode.children.push(childNode);
+            }
+            currentNode = childNode;
+        })
+    });
+
     return root;
 }
 
@@ -166,18 +215,63 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
         );
     }
     else {
-        if (!objTree.assignment) throw new Error(`Expected member ${objTree.name} to be assigned a value`);
-        return ctx.factory.createPropertyAssignment(objTree.name, objTree.assignment.value);
+        let exprValue: ts.Expression | null = null;
+        if (objTree.assignment) {
+            exprValue = objTree.assignment.value;
+        }
+        else if (objTree.arrayOperation) {
+            if (objTree.arrayOperation.funcName === 'push') {
+                exprValue = ctx.factory.createArrayLiteralExpression([
+                    ctx.factory.createSpreadElement(
+                        createChainedPropertyExpr(ctx, objTree.path)
+                    ),
+                    ...objTree.arrayOperation.args
+                ]);
+            }
+            else if (objTree.arrayOperation.funcName === 'pop') {
+                exprValue = ctx.factory.createCallExpression(
+                    createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('slice')]),
+                    [],
+                    [
+                        ctx.factory.createNumericLiteral(0),
+                        ctx.factory.createSubtract(
+                            createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('length')]),
+                            ctx.factory.createNumericLiteral(1)
+                        )
+                    ]
+                );
+            }
+            else if (objTree.arrayOperation.funcName === 'shift') {
+                exprValue = ctx.factory.createCallExpression(
+                    createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('slice')]),
+                    [],
+                    [ctx.factory.createNumericLiteral(1)]
+                );
+            }
+            else if (objTree.arrayOperation.funcName === 'unshift') {
+                exprValue = ctx.factory.createArrayLiteralExpression([
+                    ...objTree.arrayOperation.args,
+                    ctx.factory.createSpreadElement(
+                        createChainedPropertyExpr(ctx, objTree.path)
+                    )
+                ]);
+            }
+        }
+
+        if (!exprValue) {
+            throw new Error(`Expected member '${objTree.name.getText()}' to be assigned a value, or perform an array operation`);
+        }
+        return ctx.factory.createPropertyAssignment(objTree.name, exprValue);
     }
 }
 
 // Create an expression such as x.y.z
 function createChainedPropertyExpr(ctx: ts.TransformationContext, names: ts.MemberName[]): ts.Expression {
     if (names.length === 1) {
-        return ctx.factory.createIdentifier(names[0].getText());
+        return ctx.factory.createIdentifier(names[0].text);
     }
     return ctx.factory.createPropertyAccessExpression(
-        createChainedPropertyExpr(ctx, names.slice(0, -1)), names[names.length - 1].getText()
+        createChainedPropertyExpr(ctx, names.slice(0, -1)), names[names.length - 1].text
     );
 }
 
@@ -200,7 +294,14 @@ function strKind(kind: ts.SyntaxKind) {
 }
 
 function printObjTree(nd: ObjTreeNode, indent: string = '') {
-    console.log(indent + nd.name?.getText() + ' ' + (nd?.assignment?.value?.getText() ?? ''));
+    let str = indent + nd.name?.getText() + ' ';
+    if (nd.assignment) {
+        str += nd.assignment.value.getText();
+    }
+    else if (nd.arrayOperation) {
+        str += (nd.arrayOperation.funcName + '(' + nd.arrayOperation.args.map(arg => arg.getText()).join() + ')');
+    }
+    console.log(str);
 
     nd.children.forEach(child => printObjTree(child, indent + '    '));
 }
