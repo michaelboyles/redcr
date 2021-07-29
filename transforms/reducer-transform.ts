@@ -25,40 +25,33 @@ export default function(_program: ts.Program, _pluginOptions: object) {
     return (ctx: ts.TransformationContext) => {
         return (sourceFile: ts.SourceFile) => {
             function visitor(node: ts.Node): ts.Node {
-                if (!sourceFile.fileName.includes('myreducer')) {
-                    return node;
-                }
-
                 try {
-                    console.log(strKind(node.kind));
-                    console.log(node.getFullText());
-                    console.log();
+                    // if (sourceFile.fileName.includes('myreducer')) {
+                    //     console.log(strKind(node.kind));
+                    //     console.log(node.getFullText());
+                    //     console.log();
+                    //     return node;
+                    // }
 
-                    if (node.kind === ts.SyntaxKind.Block) {
-                        //console.log('block has parent type ', strKind(node.parent.kind));
-
-                        const block = node as ts.Block;
-                        const assignments = getAssignmentsInBlock(block);
-                        checkConflictingAssignments(assignments);
-                        const arrayOps = getArrayOpsInBlock(block);
-
-                        const objTree = buildObjTree(assignments, arrayOps);
-                        printObjTree(objTree);
-                        if (objTree.children.length > 1) {
-                            throw Error("Should only modify one variable in a reducer:  " + objTree.children.map(ch => ch.name.text));
-                        }
-                        if (objTree.children.length === 0) {
-                            throw Error("Your reducer doesn't modify anything");
-                        }
-                        const stateObj = objTree.children[0];
-
-                        return ctx.factory.createBlock([
-                            ctx.factory.createReturnStatement(
-                                convertObjTree(ctx, stateObj).initializer
-                            )
-                        ]);
+                    if (node.kind === ts.SyntaxKind.CallExpression) {
+                        const callExpr = node as ts.CallExpression;
+                        if (callExpr.expression.kind === ts.SyntaxKind.Identifier) {
+                            if ((callExpr.expression as ts.Identifier).text === 'redcr') {
+                                if (callExpr.arguments.length !== 1) {
+                                    throw new Error("redcr must be given precisely 1 argument, found: " + callExpr.arguments.length);
+                                }
+                                const arg = callExpr.arguments[0];
+                                if (arg.kind !== ts.SyntaxKind.ArrowFunction) {
+                                    throw new Error("redcr must be given an arrow function");   
+                                }
+                                const arrowFunction = arg as ts.ArrowFunction;
+                                if (arrowFunction.body.kind !== ts.SyntaxKind.Block) {
+                                    throw new Error("redcr must be given an arrow function with a block body, no expressions")
+                                }
+                                return replaceReducer(ctx, arrowFunction.body as ts.Block);
+                            }
+                        }    
                     }
-
                     return ts.visitEachChild(node, visitor, ctx);
                 }
                 catch (err) {
@@ -72,6 +65,39 @@ export default function(_program: ts.Program, _pluginOptions: object) {
             return ts.visitEachChild(sourceFile, visitor, ctx);
         };
     };
+}
+
+function replaceReducer(ctx: ts.TransformationContext, block: ts.Block) {
+    const assignments = getAssignmentsInBlock(block);
+    checkConflictingAssignments(assignments);
+    const arrayOps = getArrayOpsInBlock(block);
+
+    const objTree = buildObjTree(assignments, arrayOps);
+    //printObjTree(objTree);
+    if (objTree.children.length > 1) {
+        throw Error("Should only modify one variable in a reducer:  " + objTree.children.map(ch => ch.name.text));
+    }
+    if (objTree.children.length === 0) {
+        throw Error("Your reducer doesn't modify anything");
+    }
+    const stateObj = objTree.children[0];
+
+    return ctx.factory.createArrowFunction(
+        [],
+        [],
+        [
+            ctx.factory.createParameterDeclaration(
+                undefined, undefined, undefined, objTree.children[0].name.text
+            )
+        ],
+        undefined,
+        ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+        ctx.factory.createBlock([
+            ctx.factory.createReturnStatement(
+                convertObjTree(ctx, stateObj).initializer
+            )
+        ])
+    );
 }
 
 // Get all the binary expressions which represent assignments within a block
