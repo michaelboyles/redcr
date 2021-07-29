@@ -77,7 +77,7 @@ test('Array shift', () => {
     expect(oldState).toEqual({arr: [0, 1, 2]});
 });
 
-test('Array shift', () => {
+test('Array unshift', () => {
     interface State {
         arr: number[]
     }
