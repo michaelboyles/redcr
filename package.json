@@ -4,14 +4,19 @@
   "description": "",
   "scripts": {
     "build": "webpack",
-    "start": "webpack serve --mode development --open --hot"
+    "start": "webpack serve --mode development --open --hot",
+    "test": "jest",
+    "testcov": "jest --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/jest": "^26.0.24",
     "@types/node": "^15.12.5",
     "html-webpack-plugin": "^5.3.2",
+    "jest": "^27.0.6",
+    "ts-jest": "^27.0.4",
     "ts-loader": "^8.1.0",
     "ttypescript": "1.5.12",
     "typescript": "^4.3.4",
