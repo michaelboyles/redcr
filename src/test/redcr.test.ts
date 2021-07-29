@@ -6,7 +6,6 @@ test('Simple assignment', () => {
     }
     const reducer = redcr((state: State) => {
         state.str = 'new';
-        return state;
     });
 
     const oldState: State = {str: 'old'};
@@ -24,7 +23,6 @@ test('Nested assignment', () => {
     }
     const reducer = redcr((state: State) => {
         state.child.str = 'new';
-        return state;
     });
 
     const oldState: State = {child: {str: 'old' }};
@@ -40,7 +38,6 @@ test('Array push', () => {
     }
     const reducer = redcr((state: State) => {
         state.arr.push(1, 2, 3);
-        return state;
     });
 
     const oldState: State = {arr: [0]};
@@ -56,7 +53,6 @@ test('Array pop', () => {
     }
     const reducer = redcr((state: State) => {
         state.arr.pop();
-        return state;
     });
 
     const oldState: State = {arr: [0, 1, 2]};
@@ -72,7 +68,6 @@ test('Array shift', () => {
     }
     const reducer = redcr((state: State) => {
         state.arr.shift();
-        return state;
     });
 
     const oldState: State = {arr: [0, 1, 2]};
@@ -88,7 +83,6 @@ test('Array shift', () => {
     }
     const reducer = redcr((state: State) => {
         state.arr.unshift(0, 1);
-        return state;
     });
 
     const oldState: State = {arr: [2, 3]};

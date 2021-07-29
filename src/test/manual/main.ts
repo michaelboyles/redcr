@@ -1,13 +1,11 @@
 import { Parent } from './misc';
 import { redcr } from '../../redcr';
 
-const myReducer = redcr((parent: Parent): Parent => {
+const myReducer = redcr((parent: Parent) => {
     parent.str = 'abc';
     parent.str2 = 'def';
     parent.child!.str = 'ghi';
     parent.nums.push(3, 4, 5);
-
-    return parent;
 })
 
 console.log(
