@@ -4,7 +4,7 @@ module.exports = {
     name: 'Redcr',
     mode: 'development',
     devtool: false,
-    entry: './src/main.ts',
+    entry: './src/test/manual/main.ts',
     output: {
         filename: '[name].js'
     },
@@ -29,7 +29,7 @@ module.exports = {
     },
     plugins: [
         new HtmlWebpackPlugin({
-            template: 'src/index.html'
+            template: 'src/test/manual/index.html'
         })
     ]
 }

@@ -3,7 +3,7 @@
     {
         "jsx": "react",
         "plugins": [
-            { "transform": "./transforms/reducer-transform.ts" },
+            { "transform": "./src/reducer-transform.ts" },
         ],
         "target": "ES2021",
         "moduleResolution": "node",
