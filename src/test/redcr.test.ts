@@ -91,3 +91,16 @@ test('Array unshift', () => {
     expect(newState).toEqual({arr: [0, 1, 2, 3]});
     expect(oldState).toEqual({arr: [2, 3]});
 });
+
+test('Arrow function with expression body', () => {
+    interface State {
+        str: string;
+    }
+    const reducer = redcr((state: State) => state.str = 'new');
+
+    const oldState: State = {str: 'old'};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({str: 'old'});
+});

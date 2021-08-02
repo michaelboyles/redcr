@@ -44,10 +44,15 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                                     throw new Error("redcr must be given an arrow function");   
                                 }
                                 const arrowFunction = arg as ts.ArrowFunction;
-                                if (arrowFunction.body.kind !== ts.SyntaxKind.Block) {
-                                    throw new Error("redcr must be given an arrow function with a block body, no expressions")
+                                if (arrowFunction.body.kind === ts.SyntaxKind.Block) {
+                                    return replaceReducer(ctx, (arrowFunction.body as ts.Block).statements.map(i => i));
                                 }
-                                return replaceReducer(ctx, arrowFunction.body as ts.Block);
+                                else if (isExpression(arrowFunction.body)) {
+                                    return replaceReducer(
+                                        ctx, [ctx.factory.createExpressionStatement(arrowFunction.body)]
+                                    );
+                                }
+                                throw new Error("Unknown arrow function body type");
                             }
                         }    
                     }
@@ -66,10 +71,10 @@ export default function(_program: ts.Program, _pluginOptions: object) {
     };
 }
 
-function replaceReducer(ctx: ts.TransformationContext, block: ts.Block) {
-    const assignments = getAssignmentsInBlock(block);
+function replaceReducer(ctx: ts.TransformationContext, statements: ts.Statement[]) {
+    const assignments = getAssignmentsInBlock(statements);
     checkConflictingAssignments(assignments);
-    const arrayOps = getArrayOpsInBlock(block);
+    const arrayOps = getArrayOpsInStatements(statements);
 
     const objTree = buildObjTree(assignments, arrayOps);
     //printObjTree(objTree);
@@ -99,11 +104,11 @@ function replaceReducer(ctx: ts.TransformationContext, block: ts.Block) {
     );
 }
 
-// Get all the binary expressions which represent assignments within a block
-function getAssignmentsInBlock(block: ts.Block) {
+// Get all the binary expressions which represent assignments within the given statements
+function getAssignmentsInBlock(statements: ts.Statement[]) {
     const assignments: Assignment[] = [];
 
-    block.statements.forEach(statement => {
+    statements.forEach(statement => {
         if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
         const exprStatement = statement as ts.ExpressionStatement;
         if (exprStatement.expression.kind !== ts.SyntaxKind.BinaryExpression) return;
@@ -118,13 +123,13 @@ function getAssignmentsInBlock(block: ts.Block) {
     return assignments;
 }
 
-function getArrayOpsInBlock(block: ts.Block) {
+function getArrayOpsInStatements(statements: ts.Statement[]) {
     const arrayOps: ArrayOperation[] = [];
 
-    block.statements.forEach(statement => {
+    statements.forEach(statement => {
         if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
         const exprStatement = statement as ts.ExpressionStatement;
-        exprStatement.getChildren().forEach(child => {
+        exprStatement.forEachChild(child => {
             if (child.kind !== ts.SyntaxKind.CallExpression) return;
             const callExpr = child as ts.CallExpression;
             if (callExpr.expression.kind !== ts.SyntaxKind.PropertyAccessExpression) return;
@@ -326,4 +331,13 @@ function printObjTree(nd: ObjTreeNode, indent: string = '') {
     console.log(str);
 
     nd.children.forEach(child => printObjTree(child, indent + '    '));
+}
+
+function isExpression(node: ts.Node): node is ts.Expression {
+    // TODO expand this
+    const expressions = [
+        ts.SyntaxKind.BinaryExpression,
+        ts.SyntaxKind.DeleteExpression
+    ];
+    return expressions.includes(node.kind);
 }
