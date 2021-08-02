@@ -32,20 +32,18 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                     //     console.log();
                     // }
 
-                    if (node.kind === ts.SyntaxKind.CallExpression) {
-                        const callExpr = node as ts.CallExpression;
-                        if (callExpr.expression.kind === ts.SyntaxKind.Identifier) {
-                            if ((callExpr.expression as ts.Identifier).text === 'redcr') {
-                                if (callExpr.arguments.length !== 1) {
-                                    throw new Error("redcr must be given precisely 1 argument, found: " + callExpr.arguments.length);
+                    if (ts.isCallExpression(node)) {
+                        if (ts.isIdentifier(node.expression)) {
+                            if (node.expression.text === 'redcr') {
+                                if (node.arguments.length !== 1) {
+                                    throw new Error("redcr must be given precisely 1 argument, found: " + node.arguments.length);
                                 }
-                                const arg = callExpr.arguments[0];
-                                if (arg.kind !== ts.SyntaxKind.ArrowFunction) {
+                                const arrowFunction = node.arguments[0];
+                                if (!ts.isArrowFunction(arrowFunction)) {
                                     throw new Error("redcr must be given an arrow function");   
                                 }
-                                const arrowFunction = arg as ts.ArrowFunction;
-                                if (arrowFunction.body.kind === ts.SyntaxKind.Block) {
-                                    return replaceReducer(ctx, (arrowFunction.body as ts.Block).statements.map(i => i));
+                                if (ts.isBlock(arrowFunction.body)) {
+                                    return replaceReducer(ctx, arrowFunction.body.statements.map(i => i));
                                 }
                                 else if (isExpression(arrowFunction.body)) {
                                     return replaceReducer(
@@ -109,10 +107,9 @@ function getAssignmentsInBlock(statements: ts.Statement[]) {
     const assignments: Assignment[] = [];
 
     statements.forEach(statement => {
-        if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
-        const exprStatement = statement as ts.ExpressionStatement;
-        if (exprStatement.expression.kind !== ts.SyntaxKind.BinaryExpression) return;
-        const binaryExpr = exprStatement.expression as ts.BinaryExpression;
+        if (!ts.isExpressionStatement(statement)) return;
+        if (!ts.isBinaryExpression(statement.expression)) return;
+        const binaryExpr = statement.expression;
         if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
         assignments.push({
             memberChain: parseMemberChain(binaryExpr.left),
@@ -127,20 +124,18 @@ function getArrayOpsInStatements(statements: ts.Statement[]) {
     const arrayOps: ArrayOperation[] = [];
 
     statements.forEach(statement => {
-        if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
-        const exprStatement = statement as ts.ExpressionStatement;
-        exprStatement.forEachChild(child => {
-            if (child.kind !== ts.SyntaxKind.CallExpression) return;
-            const callExpr = child as ts.CallExpression;
-            if (callExpr.expression.kind !== ts.SyntaxKind.PropertyAccessExpression) return;
-            const propAccessExpr = callExpr.expression as ts.PropertyAccessExpression;
+        if (!ts.isExpressionStatement(statement)) return;
+        statement.forEachChild(child => {
+            if (!ts.isCallExpression(child)) return;
+            if (!ts.isPropertyAccessExpression(child.expression)) return;
+            const propAccessExpr = child.expression;
             const funcName = propAccessExpr.name.getText();
             if (supportedArrayOps.includes(funcName)) {
                 const memberChain = parseMemberChain(propAccessExpr);
                 memberChain.pop(); // Remove the name of the function
                 arrayOps.push({
                     funcName,
-                    args: callExpr.arguments.map(arg => arg),
+                    args: child.arguments.map(arg => arg),
                     memberChain
                 });
             }
@@ -153,16 +148,15 @@ function parseMemberChain(initExpr: ts.Expression) {
     const memberChain: ts.MemberName[] = [];
     let expr: ts.Expression | null = initExpr;
     while (expr) {
-        if (expr.kind === ts.SyntaxKind.PropertyAccessExpression) {
-            const propAccessExpr = expr as ts.PropertyAccessExpression;    
-            memberChain.unshift(propAccessExpr.name);
-            expr = propAccessExpr.expression;
+        if (ts.isPropertyAccessExpression(expr)) {
+            memberChain.unshift(expr.name);
+            expr = expr.expression;
         }
-        else if (expr.kind === ts.SyntaxKind.NonNullExpression) {
-            expr = (expr as ts.NonNullExpression).expression;
+        else if (ts.isNonNullExpression(expr)) {
+            expr = expr.expression;
         }
-        else if (expr.kind === ts.SyntaxKind.Identifier) {
-            memberChain.unshift(expr as ts.Identifier);
+        else if (ts.isIdentifier(expr)) {
+            memberChain.unshift(expr);
             expr = null;
         }
         else {
