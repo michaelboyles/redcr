@@ -26,11 +26,10 @@ export default function(_program: ts.Program, _pluginOptions: object) {
         return (sourceFile: ts.SourceFile) => {
             function visitor(node: ts.Node): ts.Node {
                 try {
-                    // if (sourceFile.fileName.includes('myreducer')) {
+                    // if (sourceFile.fileName.includes('main.ts')) {
                     //     console.log(strKind(node.kind));
                     //     console.log(node.getFullText());
                     //     console.log();
-                    //     return node;
                     // }
 
                     if (node.kind === ts.SyntaxKind.CallExpression) {
@@ -105,19 +104,16 @@ function getAssignmentsInBlock(block: ts.Block) {
     const assignments: Assignment[] = [];
 
     block.statements.forEach(statement => {
-        if (statement.kind === ts.SyntaxKind.ExpressionStatement) {
-            const exprStatement = statement as ts.ExpressionStatement;
-            if (exprStatement.expression.kind === ts.SyntaxKind.BinaryExpression) {
-                const binaryExpr = exprStatement.expression as ts.BinaryExpression;
-                if (binaryExpr.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
-                    assignments.push({
-                        memberChain: parseMemberChain(binaryExpr.left),
-                        value: binaryExpr.right,
-                        binaryExpr
-                    });
-                }
-            }
-        }
+        if (statement.kind !== ts.SyntaxKind.ExpressionStatement) return;
+        const exprStatement = statement as ts.ExpressionStatement;
+        if (exprStatement.expression.kind !== ts.SyntaxKind.BinaryExpression) return;
+        const binaryExpr = exprStatement.expression as ts.BinaryExpression;
+        if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
+        assignments.push({
+            memberChain: parseMemberChain(binaryExpr.left),
+            value: binaryExpr.right,
+            binaryExpr
+        });
     });
     return assignments;
 }
