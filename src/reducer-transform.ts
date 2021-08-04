@@ -1,14 +1,15 @@
 import * as ts from 'typescript';
+import { dynamicPropAccess, isPropAccessEqual, memberPropAccess, PropAccess, propAccessToStr } from './prop-access';
 
 interface Assignment {
-    memberChain: ts.MemberName[];
+    accessChain: PropAccess[];
     value: ts.Expression;
     binaryExpr: ts.BinaryExpression;
 }
 
 interface ObjTreeNode {
-    name: ts.MemberName,
-    path: ts.MemberName[],
+    name: PropAccess,
+    path: PropAccess[],
     assignment?: Assignment;
     arrayOperation?: ArrayOperation;
     children: ObjTreeNode[];
@@ -17,7 +18,7 @@ interface ObjTreeNode {
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
 interface ArrayOperation {
     funcName: string,
-    memberChain: ts.MemberName[];
+    accessChain: PropAccess[];
     args: ts.Expression[];
 }
 
@@ -31,7 +32,6 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                     //     console.log(node.getFullText());
                     //     console.log();
                     // }
-
                     if (ts.isCallExpression(node)) {
                         if (ts.isIdentifier(node.expression)) {
                             if (node.expression.text === 'redcr') {
@@ -42,12 +42,18 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                                 if (!ts.isArrowFunction(arrowFunction)) {
                                     throw new Error("redcr must be given an arrow function");   
                                 }
+                                const params = arrowFunction.parameters.map(i => i);
                                 if (ts.isBlock(arrowFunction.body)) {
-                                    return replaceReducer(ctx, arrowFunction.body.statements.map(i => i));
+                                    arrowFunction.parameters
+                                    return replaceReducer(
+                                        ctx, params,
+                                        arrowFunction.body.statements.map(i => i)
+                                    );
                                 }
                                 else if (isExpression(arrowFunction.body)) {
                                     return replaceReducer(
-                                        ctx, [ctx.factory.createExpressionStatement(arrowFunction.body)]
+                                        ctx, params,
+                                        [ctx.factory.createExpressionStatement(arrowFunction.body)]
                                     );
                                 }
                                 throw new Error("Unknown arrow function body type");
@@ -69,29 +75,19 @@ export default function(_program: ts.Program, _pluginOptions: object) {
     };
 }
 
-function replaceReducer(ctx: ts.TransformationContext, statements: ts.Statement[]) {
+function replaceReducer(ctx: ts.TransformationContext, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
     const assignments = getAssignmentsInBlock(statements);
     checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(statements);
 
     const objTree = buildObjTree(assignments, arrayOps);
     //printObjTree(objTree);
-    if (objTree.children.length > 1) {
-        throw Error("Should only modify one variable in a reducer:  " + objTree.children.map(ch => ch.name.text));
-    }
-    if (objTree.children.length === 0) {
-        throw Error("Your reducer doesn't modify anything");
-    }
     const stateObj = objTree.children[0];
 
     return ctx.factory.createArrowFunction(
         [],
         [],
-        [
-            ctx.factory.createParameterDeclaration(
-                undefined, undefined, undefined, objTree.children[0].name.text
-            )
-        ],
+        params,
         undefined,
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ctx.factory.createBlock([
@@ -112,7 +108,7 @@ function getAssignmentsInBlock(statements: ts.Statement[]) {
         const binaryExpr = statement.expression;
         if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
         assignments.push({
-            memberChain: parseMemberChain(binaryExpr.left),
+            accessChain: parseAccessChain(binaryExpr.left),
             value: binaryExpr.right,
             binaryExpr
         });
@@ -131,12 +127,12 @@ function getArrayOpsInStatements(statements: ts.Statement[]) {
             const propAccessExpr = child.expression;
             const funcName = propAccessExpr.name.getText();
             if (supportedArrayOps.includes(funcName)) {
-                const memberChain = parseMemberChain(propAccessExpr);
-                memberChain.pop(); // Remove the name of the function
+                const accessChain = parseAccessChain(propAccessExpr);
+                accessChain.pop(); // Remove the name of the function
                 arrayOps.push({
                     funcName,
                     args: child.arguments.map(arg => arg),
-                    memberChain
+                    accessChain
                 });
             }
         });
@@ -144,33 +140,37 @@ function getArrayOpsInStatements(statements: ts.Statement[]) {
     return arrayOps;
 }
 
-function parseMemberChain(initExpr: ts.Expression) {
-    const memberChain: ts.MemberName[] = [];
+function parseAccessChain(initExpr: ts.Expression) {
+    const accessChain: PropAccess[] = [];
     let expr: ts.Expression | null = initExpr;
     while (expr) {
         if (ts.isPropertyAccessExpression(expr)) {
-            memberChain.unshift(expr.name);
+            accessChain.unshift(memberPropAccess(expr.name));
             expr = expr.expression;
         }
         else if (ts.isNonNullExpression(expr)) {
             expr = expr.expression;
         }
         else if (ts.isIdentifier(expr)) {
-            memberChain.unshift(expr);
+            accessChain.unshift(memberPropAccess(expr));
             expr = null;
+        }
+        else if (ts.isElementAccessExpression(expr)) {
+            accessChain.unshift(dynamicPropAccess(expr.argumentExpression));
+            expr = expr.expression;
         }
         else {
             throw new Error('Unhandled syntax kind ' + strKind(expr.kind))
         }
     }
-    return memberChain;
+    return accessChain;
 }
 
 // Throw an error if multiple assignments cannot both be performed
 function checkConflictingAssignments(assignments: Assignment[]) {
     assignments.forEach(a => {
         assignments.forEach(b => {
-            if (a != b && isSubPath(a.memberChain, b.memberChain)) {
+            if (a != b && isSubPath(a.accessChain, b.accessChain)) {
                 throw new Error('Conflicting assignments! ' + a.binaryExpr.getFullText() + " and " + b.binaryExpr.getFullText() ) 
             }
         })
@@ -179,21 +179,21 @@ function checkConflictingAssignments(assignments: Assignment[]) {
 
 function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): ObjTreeNode {
     const root: ObjTreeNode = {
-        name: null as any as ts.MemberName,
+        name: null as any,
         children: [],
         path: []
     };
 
     assignments.forEach(assignment => {
         let currentNode: ObjTreeNode = root;
-        assignment.memberChain.forEach((member, idx) => {
-            let childNode = currentNode.children.find(child => child.name.getText() === member.getText());
-            const isLast = idx === (assignment.memberChain.length - 1);
+        assignment.accessChain.forEach((propAccess, idx) => {
+            let childNode = currentNode.children.find(child => isPropAccessEqual(child.name, propAccess));
+            const isLast = idx === (assignment.accessChain.length - 1);
             if (!childNode) {
                 childNode = {
-                    name: member,
+                    name: propAccess,
                     children: [],
-                    path: [...currentNode.path, member],
+                    path: [...currentNode.path, propAccess],
                     ...(isLast ? { assignment } : {})
                 };
                 currentNode.children.push(childNode);
@@ -204,14 +204,14 @@ function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): Ob
     // TODO very similar to above... generalise?
     arrayOps.forEach(arrayOp => {
         let currentNode: ObjTreeNode = root;
-        arrayOp.memberChain.forEach((member, idx) => {
-            let childNode = currentNode.children.find(child => child.name.getText() === member.getText());
-            const isLast = idx === (arrayOp.memberChain.length - 1);
+        arrayOp.accessChain.forEach((propAccess, idx) => {
+            let childNode = currentNode.children.find(child => isPropAccessEqual(child.name, propAccess));
+            const isLast = idx === (arrayOp.accessChain.length - 1);
             if (!childNode) {
                 childNode = {
-                    name: member,
+                    name: propAccess,
                     children: [],
-                    path: [...currentNode.path, member],
+                    path: [...currentNode.path, propAccess],
                     ...(isLast ? { arrayOperation: arrayOp } : {})
                 };
                 currentNode.children.push(childNode);
@@ -226,7 +226,7 @@ function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): Ob
 function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts.PropertyAssignment {
     if (objTree.children.length > 0) {
         return ctx.factory.createPropertyAssignment(
-            objTree.name,
+            getPropertyName(ctx, objTree.name),
             ctx.factory.createObjectLiteralExpression([
                 ctx.factory.createSpreadAssignment(
                     createChainedPropertyExpr(ctx, objTree.path)
@@ -251,12 +251,12 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
             }
             else if (objTree.arrayOperation.funcName === 'pop') {
                 exprValue = ctx.factory.createCallExpression(
-                    createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('slice')]),
+                    createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('slice'))]),
                     [],
                     [
                         ctx.factory.createNumericLiteral(0),
                         ctx.factory.createSubtract(
-                            createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('length')]),
+                            createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('length'))]),
                             ctx.factory.createNumericLiteral(1)
                         )
                     ]
@@ -264,7 +264,7 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
             }
             else if (objTree.arrayOperation.funcName === 'shift') {
                 exprValue = ctx.factory.createCallExpression(
-                    createChainedPropertyExpr(ctx, [...objTree.path, ctx.factory.createIdentifier('slice')]),
+                    createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('slice'))]),
                     [],
                     [ctx.factory.createNumericLiteral(1)]
                 );
@@ -280,27 +280,56 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
         }
 
         if (!exprValue) {
-            throw new Error(`Expected member '${objTree.name.getText()}' to be assigned a value, or perform an array operation`);
+            throw Error(`Expected member '${propAccessToStr(objTree.name)}' to be assigned a value, or perform an array operation`);
         }
-        return ctx.factory.createPropertyAssignment(objTree.name, exprValue);
+        return ctx.factory.createPropertyAssignment(getPropertyName(ctx, objTree.name), exprValue);
     }
+}
+
+function getPropertyName(ctx: ts.TransformationContext, propAccess: PropAccess): ts.PropertyName {
+    if (propAccess.type === 'member') {
+        return propAccess.member;
+    }
+    if (propAccess.type === 'dynamic') {
+        return ctx.factory.createComputedPropertyName(propAccess.expr)
+    }
+    const _exhaustiveCheck: never = propAccess;
+    return _exhaustiveCheck;
 }
 
 // Create an expression such as x.y.z
-function createChainedPropertyExpr(ctx: ts.TransformationContext, names: ts.MemberName[]): ts.Expression {
-    if (names.length === 1) {
-        return ctx.factory.createIdentifier(names[0].text);
+function createChainedPropertyExpr(ctx: ts.TransformationContext, accessChain: PropAccess[]): ts.Expression {
+    if (accessChain.length === 1) {
+        if (accessChain[0].type === 'member') {
+            return ctx.factory.createIdentifier(accessChain[0].member.text);
+        }
+        throw Error("Don't believe this is possible...");
     }
-    return ctx.factory.createPropertyAccessExpression(
-        createChainedPropertyExpr(ctx, names.slice(0, -1)), names[names.length - 1].text
-    );
+    const lastElem = accessChain[accessChain.length - 1];
+    if (lastElem.type === 'member') {
+        return ctx.factory.createPropertyAccessExpression(
+            createChainedPropertyExpr(ctx, accessChain.slice(0, -1)), lastElem.member.text
+        );
+    }
+    else if (lastElem.type === 'dynamic') {
+        return ctx.factory.createElementAccessExpression(
+            createChainedPropertyExpr(ctx, accessChain.slice(0, -1)), lastElem.expr
+        );
+    }
+    const _exhaustiveCheck: never = lastElem;
+    return _exhaustiveCheck;
 }
 
 // Return true if the 1st argument is either the same or a sub-path of the 2nd, else false
-function isSubPath(a: ts.MemberName[], b: ts.MemberName[]): boolean {
+function isSubPath(a: PropAccess[], b: PropAccess[]): boolean {
     if (a.length > b.length) return false;
     for (let i = 0; i < a.length; ++i) {
-        if (a[i].text !== b[i].text) return false;
+        const aItem = a[i];
+        const bItem = b[i];
+        if (aItem.type !== bItem.type) return false;
+        if (aItem.type === 'member' && bItem.type === 'member') {
+            if (aItem.member.text !== bItem.member.text) return false;
+        }
     }
     return true;
 }
@@ -315,7 +344,7 @@ function strKind(kind: ts.SyntaxKind) {
 }
 
 function printObjTree(nd: ObjTreeNode, indent: string = '') {
-    let str = indent + nd.name?.getText() + ' ';
+    let str = indent + propAccessToStr(nd.name) + ' ';
     if (nd.assignment) {
         str += nd.assignment.value.getText();
     }

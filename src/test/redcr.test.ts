@@ -104,3 +104,31 @@ test('Arrow function with expression body', () => {
     expect(newState).toEqual({str: 'new'});
     expect(oldState).toEqual({str: 'old'});
 });
+
+test('Bracket notation property access', () => {
+    interface State {
+        str: string;
+    }
+    const reducer = redcr((state: State) => state['str'] = 'new');
+
+    const oldState: State = {str: 'old'};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({str: 'old'});
+});
+
+test('Bracket notation property access in middle of chain', () => {
+    interface State {
+        child: {
+            str: string;
+        }
+    }
+    const reducer = redcr((state: State) => state['child'].str = 'new');
+
+    const oldState: State = {child: {str: 'old'}};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({child: {str: 'new'}});
+    expect(oldState).toEqual({child: {str: 'old'}});
+});
