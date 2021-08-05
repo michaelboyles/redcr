@@ -132,3 +132,30 @@ test('Bracket notation property access in middle of chain', () => {
     expect(newState).toEqual({child: {str: 'new'}});
     expect(oldState).toEqual({child: {str: 'old'}});
 });
+
+test('Assign to arbitary array index', () => {
+    interface State {
+        arr: number[];
+    }
+    const reducer = redcr((state: State) => state.arr[1] = 999);
+
+    const oldState: State = {arr: [0, 1, 2]};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: [0, 999, 2]});
+    expect(oldState).toEqual({arr: [0, 1, 2]});
+});
+
+test('Assign to arbitary ID of record', () => {
+    interface State {
+        record: Record<string, string>
+    }
+    // This looks very close to editing an array but it's not!
+    const reducer = redcr((state: State) => state.record[1] = 'abc');
+
+    const oldState: State = {record: {}};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({record: {'1': 'abc'}});
+    expect(oldState).toEqual({record: {}});
+});

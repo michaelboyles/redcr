@@ -22,9 +22,17 @@ interface ArrayOperation {
     args: ts.Expression[];
 }
 
-export default function(_program: ts.Program, _pluginOptions: object) {
+interface TransformState {
+    program: ts.Program;
+    pluginOptions: object;
+    ctx: ts.TransformationContext;
+    sourceFile: ts.SourceFile;
+}
+
+export default function(program: ts.Program, pluginOptions: object) {
     return (ctx: ts.TransformationContext) => {
         return (sourceFile: ts.SourceFile) => {
+            const state: TransformState = {program, pluginOptions, ctx, sourceFile};
             function visitor(node: ts.Node): ts.Node {
                 try {
                     // if (sourceFile.fileName.includes('main.ts')) {
@@ -46,13 +54,13 @@ export default function(_program: ts.Program, _pluginOptions: object) {
                                 if (ts.isBlock(arrowFunction.body)) {
                                     arrowFunction.parameters
                                     return replaceReducer(
-                                        ctx, params,
+                                        state, params,
                                         arrowFunction.body.statements.map(i => i)
                                     );
                                 }
                                 else if (isExpression(arrowFunction.body)) {
                                     return replaceReducer(
-                                        ctx, params,
+                                        state, params,
                                         [ctx.factory.createExpressionStatement(arrowFunction.body)]
                                     );
                                 }
@@ -75,13 +83,14 @@ export default function(_program: ts.Program, _pluginOptions: object) {
     };
 }
 
-function replaceReducer(ctx: ts.TransformationContext, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
-    const assignments = getAssignmentsInBlock(statements);
+function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
+    const { ctx } = state;
+    const assignments = getAssignmentsInBlock(state, statements);
     checkConflictingAssignments(assignments);
-    const arrayOps = getArrayOpsInStatements(statements);
+    const arrayOps = getArrayOpsInStatements(state, statements);
 
     const objTree = buildObjTree(assignments, arrayOps);
-    //printObjTree(objTree);
+    printObjTree(objTree);
     const stateObj = objTree.children[0];
 
     return ctx.factory.createArrowFunction(
@@ -92,14 +101,14 @@ function replaceReducer(ctx: ts.TransformationContext, params: ts.ParameterDecla
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ctx.factory.createBlock([
             ctx.factory.createReturnStatement(
-                convertObjTree(ctx, stateObj).initializer
+                convertObjTree(state, stateObj).initializer
             )
         ])
     );
 }
 
 // Get all the binary expressions which represent assignments within the given statements
-function getAssignmentsInBlock(statements: ts.Statement[]) {
+function getAssignmentsInBlock(state: TransformState, statements: ts.Statement[]) {
     const assignments: Assignment[] = [];
 
     statements.forEach(statement => {
@@ -108,7 +117,7 @@ function getAssignmentsInBlock(statements: ts.Statement[]) {
         const binaryExpr = statement.expression;
         if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
         assignments.push({
-            accessChain: parseAccessChain(binaryExpr.left),
+            accessChain: parseAccessChain(state, binaryExpr.left),
             value: binaryExpr.right,
             binaryExpr
         });
@@ -116,7 +125,7 @@ function getAssignmentsInBlock(statements: ts.Statement[]) {
     return assignments;
 }
 
-function getArrayOpsInStatements(statements: ts.Statement[]) {
+function getArrayOpsInStatements(state: TransformState, statements: ts.Statement[]) {
     const arrayOps: ArrayOperation[] = [];
 
     statements.forEach(statement => {
@@ -127,7 +136,7 @@ function getArrayOpsInStatements(statements: ts.Statement[]) {
             const propAccessExpr = child.expression;
             const funcName = propAccessExpr.name.getText();
             if (supportedArrayOps.includes(funcName)) {
-                const accessChain = parseAccessChain(propAccessExpr);
+                const accessChain = parseAccessChain(state, propAccessExpr);
                 accessChain.pop(); // Remove the name of the function
                 arrayOps.push({
                     funcName,
@@ -140,23 +149,24 @@ function getArrayOpsInStatements(statements: ts.Statement[]) {
     return arrayOps;
 }
 
-function parseAccessChain(initExpr: ts.Expression) {
+function parseAccessChain(state: TransformState, initExpr: ts.Expression) {
     const accessChain: PropAccess[] = [];
     let expr: ts.Expression | null = initExpr;
     while (expr) {
+        const exprType = state.program.getTypeChecker().getTypeAtLocation(expr);
         if (ts.isPropertyAccessExpression(expr)) {
-            accessChain.unshift(memberPropAccess(expr.name));
+            accessChain.unshift(memberPropAccess(expr.name, exprType));
             expr = expr.expression;
         }
         else if (ts.isNonNullExpression(expr)) {
             expr = expr.expression;
         }
         else if (ts.isIdentifier(expr)) {
-            accessChain.unshift(memberPropAccess(expr));
+            accessChain.unshift(memberPropAccess(expr, exprType));
             expr = null;
         }
         else if (ts.isElementAccessExpression(expr)) {
-            accessChain.unshift(dynamicPropAccess(expr.argumentExpression));
+            accessChain.unshift(dynamicPropAccess(expr.argumentExpression, exprType));
             expr = expr.expression;
         }
         else {
@@ -223,17 +233,49 @@ function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): Ob
     return root;
 }
 
-function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts.PropertyAssignment {
+
+
+function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.PropertyAssignment {
+    const { ctx } = state;
     if (objTree.children.length > 0) {
-        return ctx.factory.createPropertyAssignment(
-            getPropertyName(ctx, objTree.name),
-            ctx.factory.createObjectLiteralExpression([
-                ctx.factory.createSpreadAssignment(
-                    createChainedPropertyExpr(ctx, objTree.path)
-                ),
-                ...objTree.children.map(child => convertObjTree(ctx, child) as ts.PropertyAssignment)
-            ])
-        );
+        if (isArrayType(objTree.name.exprType)) {
+            return ctx.factory.createPropertyAssignment(
+                getPropertyName(ctx, objTree.name),
+                ctx.factory.createCallExpression(
+                    ctx.factory.createPropertyAccessExpression(
+                        ctx.factory.createIdentifier('Object'), 'assign'
+                    ),
+                    [],
+                    [
+                        ctx.factory.createArrayLiteralExpression([
+                            ctx.factory.createSpreadElement(
+                                createChainedPropertyExpr(ctx, objTree.path)
+                            )
+                        ]),
+                        ctx.factory.createObjectLiteralExpression(
+                            objTree.children.map(child => {
+                                    if (!child.assignment) throw Error();
+                                    return ctx.factory.createPropertyAssignment(
+                                        getPropertyName(ctx, child.name),
+                                        child.assignment.value
+                                    )
+                                })
+                        )
+                    ]
+                )
+            );
+        }
+        else {
+            return ctx.factory.createPropertyAssignment(
+                getPropertyName(ctx, objTree.name),
+                ctx.factory.createObjectLiteralExpression([
+                    ctx.factory.createSpreadAssignment(
+                        createChainedPropertyExpr(ctx, objTree.path)
+                    ),
+                    ...objTree.children.map(child => convertObjTree(state, child) as ts.PropertyAssignment)
+                ])
+            );
+        }
     }
     else {
         let exprValue: ts.Expression | null = null;
@@ -251,12 +293,16 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
             }
             else if (objTree.arrayOperation.funcName === 'pop') {
                 exprValue = ctx.factory.createCallExpression(
-                    createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('slice'))]),
+                    ctx.factory.createPropertyAccessExpression(
+                        createChainedPropertyExpr(ctx, objTree.path), 'slice'
+                    ),
                     [],
                     [
                         ctx.factory.createNumericLiteral(0),
                         ctx.factory.createSubtract(
-                            createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('length'))]),
+                            ctx.factory.createPropertyAccessExpression(
+                                createChainedPropertyExpr(ctx, objTree.path), 'length'
+                            ),
                             ctx.factory.createNumericLiteral(1)
                         )
                     ]
@@ -264,7 +310,9 @@ function convertObjTree(ctx: ts.TransformationContext, objTree: ObjTreeNode): ts
             }
             else if (objTree.arrayOperation.funcName === 'shift') {
                 exprValue = ctx.factory.createCallExpression(
-                    createChainedPropertyExpr(ctx, [...objTree.path, memberPropAccess(ctx.factory.createIdentifier('slice'))]),
+                    ctx.factory.createPropertyAccessExpression(
+                        createChainedPropertyExpr(ctx, objTree.path), 'slice'
+                    ),
                     [],
                     [ctx.factory.createNumericLiteral(1)]
                 );
@@ -295,6 +343,12 @@ function getPropertyName(ctx: ts.TransformationContext, propAccess: PropAccess):
     }
     const _exhaustiveCheck: never = propAccess;
     return _exhaustiveCheck;
+}
+
+function isArrayType(exprType: ts.Type) {
+    const props = exprType.getProperties().map(prop => prop.name);
+    const isArrayExpr = props.includes('length') && supportedArrayOps.every(op => props.includes(op));
+    return isArrayExpr;
 }
 
 // Create an expression such as x.y.z
