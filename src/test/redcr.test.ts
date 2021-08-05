@@ -1,4 +1,4 @@
-import { redcr } from "../redcr";
+import { redcr } from "..";
 
 test('Simple assignment', () => {
     interface State {

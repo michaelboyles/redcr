@@ -1,5 +1,5 @@
 import { Parent } from './misc';
-import { redcr } from '../../redcr';
+import { redcr } from '../..';
 
 const myReducer = redcr((parent: Parent) => {
     parent.str = 'abc';

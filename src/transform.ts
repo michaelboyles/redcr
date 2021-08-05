@@ -1,5 +1,6 @@
 import * as ts from 'typescript';
-import { dynamicPropAccess, isPropAccessEqual, memberPropAccess, PropAccess, propAccessToStr } from './prop-access';
+import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
+import { assertExhaustive, isExpression, TransformState } from './util';
 
 interface Assignment {
     accessChain: PropAccess[];
@@ -22,13 +23,6 @@ interface ArrayOperation {
     args: ts.Expression[];
 }
 
-interface TransformState {
-    program: ts.Program;
-    pluginOptions: object;
-    ctx: ts.TransformationContext;
-    sourceFile: ts.SourceFile;
-}
-
 export default function(program: ts.Program, pluginOptions: object) {
     return (ctx: ts.TransformationContext) => {
         return (sourceFile: ts.SourceFile) => {
@@ -36,7 +30,7 @@ export default function(program: ts.Program, pluginOptions: object) {
             function visitor(node: ts.Node): ts.Node {
                 try {
                     // if (sourceFile.fileName.includes('main.ts')) {
-                    //     console.log(strKind(node.kind));
+                    //     console.log(strKind(node));
                     //     console.log(node.getFullText());
                     //     console.log();
                     // }
@@ -85,7 +79,7 @@ export default function(program: ts.Program, pluginOptions: object) {
 
 function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
     const { ctx } = state;
-    const assignments = getAssignmentsInBlock(state, statements);
+    const assignments = getAssignmentsInStatements(state, statements);
     checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(state, statements);
 
@@ -108,7 +102,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
 }
 
 // Get all the binary expressions which represent assignments within the given statements
-function getAssignmentsInBlock(state: TransformState, statements: ts.Statement[]) {
+function getAssignmentsInStatements(state: TransformState, statements: ts.Statement[]) {
     const assignments: Assignment[] = [];
 
     statements.forEach(statement => {
@@ -147,33 +141,6 @@ function getArrayOpsInStatements(state: TransformState, statements: ts.Statement
         });
     });
     return arrayOps;
-}
-
-function parseAccessChain(state: TransformState, initExpr: ts.Expression) {
-    const accessChain: PropAccess[] = [];
-    let expr: ts.Expression | null = initExpr;
-    while (expr) {
-        const exprType = state.program.getTypeChecker().getTypeAtLocation(expr);
-        if (ts.isPropertyAccessExpression(expr)) {
-            accessChain.unshift(memberPropAccess(expr.name, exprType));
-            expr = expr.expression;
-        }
-        else if (ts.isNonNullExpression(expr)) {
-            expr = expr.expression;
-        }
-        else if (ts.isIdentifier(expr)) {
-            accessChain.unshift(memberPropAccess(expr, exprType));
-            expr = null;
-        }
-        else if (ts.isElementAccessExpression(expr)) {
-            accessChain.unshift(dynamicPropAccess(expr.argumentExpression, exprType));
-            expr = expr.expression;
-        }
-        else {
-            throw new Error('Unhandled syntax kind ' + strKind(expr.kind))
-        }
-    }
-    return accessChain;
 }
 
 // Throw an error if multiple assignments cannot both be performed
@@ -232,8 +199,6 @@ function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): Ob
 
     return root;
 }
-
-
 
 function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.PropertyAssignment {
     const { ctx } = state;
@@ -341,8 +306,7 @@ function getPropertyName(ctx: ts.TransformationContext, propAccess: PropAccess):
     if (propAccess.type === 'dynamic') {
         return ctx.factory.createComputedPropertyName(propAccess.expr)
     }
-    const _exhaustiveCheck: never = propAccess;
-    return _exhaustiveCheck;
+    return assertExhaustive(propAccess);
 }
 
 function isArrayType(exprType: ts.Type) {
@@ -370,34 +334,7 @@ function createChainedPropertyExpr(ctx: ts.TransformationContext, accessChain: P
             createChainedPropertyExpr(ctx, accessChain.slice(0, -1)), lastElem.expr
         );
     }
-    const _exhaustiveCheck: never = lastElem;
-    return _exhaustiveCheck;
-}
-
-// Return true if the 1st argument is either the same or a sub-path of the 2nd, else false
-function isSubPath(a: PropAccess[], b: PropAccess[]): boolean {
-    if (a.length > b.length) return false;
-    for (let i = 0; i < a.length; ++i) {
-        const aItem = a[i];
-        const bItem = b[i];
-        if (aItem.type !== bItem.type) return false;
-        if (aItem.type === 'member' && bItem.type === 'member') {
-            if (aItem.member.text !== bItem.member.text) return false;
-        }
-        if (aItem.type === 'dynamic' && bItem.type === 'dynamic') {
-            if (aItem.expr.getText() !== bItem.expr.getText()) return false;
-        }
-    }
-    return true;
-}
-
-// Get nodes only of a certain type from a list of nodes
-function filterNodes<T extends ts.Node>(kind: ts.SyntaxKind, nodes: ts.Node[]) {
-    return nodes.filter(node => node.kind === kind) as T[];
-}
-
-function strKind(kind: ts.SyntaxKind) {
-    return ts.SyntaxKind[kind];
+    return assertExhaustive(lastElem);
 }
 
 function printObjTree(nd: ObjTreeNode, indent: string = '') {
@@ -411,13 +348,4 @@ function printObjTree(nd: ObjTreeNode, indent: string = '') {
     console.log(str);
 
     nd.children.forEach(child => printObjTree(child, indent + '    '));
-}
-
-function isExpression(node: ts.Node): node is ts.Expression {
-    // TODO expand this
-    const expressions = [
-        ts.SyntaxKind.BinaryExpression,
-        ts.SyntaxKind.DeleteExpression
-    ];
-    return expressions.includes(node.kind);
 }
