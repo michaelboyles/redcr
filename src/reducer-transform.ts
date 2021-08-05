@@ -90,7 +90,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
     const arrayOps = getArrayOpsInStatements(state, statements);
 
     const objTree = buildObjTree(assignments, arrayOps);
-    printObjTree(objTree);
+    //printObjTree(objTree);
     const stateObj = objTree.children[0];
 
     return ctx.factory.createArrowFunction(
@@ -383,6 +383,9 @@ function isSubPath(a: PropAccess[], b: PropAccess[]): boolean {
         if (aItem.type !== bItem.type) return false;
         if (aItem.type === 'member' && bItem.type === 'member') {
             if (aItem.member.text !== bItem.member.text) return false;
+        }
+        if (aItem.type === 'dynamic' && bItem.type === 'dynamic') {
+            if (aItem.expr.getText() !== bItem.expr.getText()) return false;
         }
     }
     return true;

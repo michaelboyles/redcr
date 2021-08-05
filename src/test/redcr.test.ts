@@ -146,6 +146,22 @@ test('Assign to arbitary array index', () => {
     expect(oldState).toEqual({arr: [0, 1, 2]});
 });
 
+test('Assign to multiple array indices', () => {
+    interface State {
+        arr: number[];
+    }
+    const reducer = redcr((state: State) => {
+        state.arr[1] = 888;
+        state.arr[6] = 999;
+    });
+
+    const oldState: State = {arr: [0, 1, 2]};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: [0, 888, 2, , , , 999]});
+    expect(oldState).toEqual({arr: [0, 1, 2]});
+});
+
 test('Assign to arbitary ID of record', () => {
     interface State {
         record: Record<string, string>
