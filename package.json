@@ -1,16 +1,26 @@
 {
   "name": "redcr",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "Simplify writing Redux reducers with compile-time transformations",
   "scripts": {
-    "build": "webpack",
+    "build": "webpack && node build/copy-to-dist.js",
     "start": "webpack serve --mode development --open --hot",
     "test": "jest",
-    "testcov": "jest --coverage"
+    "testcov": "jest --coverage",
+    "prepack": "node ../build/message.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "react",
+    "redux",
+    "reducers",
+    "immer"
+  ],
+  "author": "Michael Boyles <michael@boyl.es> (https://boyl.es)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelboyles/redcr"
+  },
   "devDependencies": {
     "@types/jest": "^26.0.24",
     "@types/node": "^15.12.5",
