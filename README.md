@@ -44,7 +44,7 @@ Browser support for the spread operator is not required, since TypeScript can re
 [**ttypescript**](https://github.com/cevek/ttypescript) which is a smaller wrapper around TypeScript which exposes that feature.
 
 ```
-npm install --save-dev jsx-conditionals ttypescript
+npm install --save-dev redcr ttypescript
 ```
 
 Follow [**ttypescript**'s setup](https://github.com/cevek/ttypescript#how-to-use) for the specific tools you're using. There is
