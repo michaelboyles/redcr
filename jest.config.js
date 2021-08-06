@@ -4,8 +4,8 @@ module.exports = {
   globals: {
     'ts-jest': {
       compiler: 'ttypescript',
-      tsconfig: './tsconfig.json',
-      diagnostics: false //TODO work out why type-checking fails 
+      tsconfig: './src/test/tsconfig-test.json',
+      diagnostics: false //TODO work out why type-checking fails
     },
   }
 };
