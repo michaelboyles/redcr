@@ -1,3 +1,7 @@
+[![Build status](https://img.shields.io/github/workflow/status/michaelboyles/redcr/Build%20with%20npm)](https://github.com/michaelboyles/redcr/actions)
+[![NPM release](https://img.shields.io/npm/v/redcr)](https://www.npmjs.com/package/redcr)
+[![License](https://img.shields.io/github/license/michaelboyles/redcr)](https://github.com/michaelboyles/redcr/blob/develop/LICENSE)
+
 Redcr (pronounced *redka* [like the British town](https://en.wikipedia.org/wiki/Redcar)) is an experimental
 alternative to [Immer](https://github.com/immerjs/immer).
 
