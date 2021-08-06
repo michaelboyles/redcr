@@ -38,9 +38,36 @@ const myReducer = (state) => {
 
 Browser support for the spread operator is not required, since TypeScript can replace it with a polyfill. 
 
-## Currently supported operations:
+## Install
 
- - Property assignment e.g. `state.foo.bar = 123;`
+**Redcr** works by using TypeScript compiler transforms. Even though this is a [native TypeScript feature](https://github.com/microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md), it's not yet exposed publically. You need
+[**ttypescript**](https://github.com/cevek/ttypescript) which is a smaller wrapper around TypeScript which exposes that feature.
+
+```
+npm install --save-dev jsx-conditionals ttypescript
+```
+
+Follow [**ttypescript**'s setup](https://github.com/cevek/ttypescript#how-to-use) for the specific tools you're using. There is
+different configuration for Webpack, Rollup, Jest, etc but mostly they're just 1 or 2 lines of configuration to re-point the compiler.
+
+Then in your `tsconfig.json` add the transformation:
+
+```json
+{
+    "compilerOptions": {
+        "plugins": [
+            { "transform": "./node_modules/redcr/transform.js" },
+        ]
+    }
+}
+```
+
+## Currently supported operations
+
+ - Assignment
+    - Simple property e.g. `state.foo.bar = 123;`
+    - Bracket syntax e.g. `state['foo'].bar = 123;`
+    - Array index e.g. `state.arr[3] = 123;`
  - These array operations
     - push e.g. `state.arr.push(1, 2, 3);`
     - pop e.g. `state.arr.pop();`
