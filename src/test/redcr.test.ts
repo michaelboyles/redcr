@@ -175,3 +175,19 @@ test('Assign to arbitary ID of record', () => {
     expect(newState).toEqual({record: {'1': 'abc'}});
     expect(oldState).toEqual({record: {}});
 });
+
+test('Reducer with action', () => {
+    interface State {
+        foo: string;
+    }
+    interface Action {
+        bar: string;
+    }
+    const reducer = redcr((state: State, action: Action) => state.foo = action.bar);
+
+    const oldState: State = {foo: 'old'};
+    const newState = reducer(oldState, {bar: 'new'});
+
+    expect(newState).toEqual({foo: 'new'});
+    expect(oldState).toEqual({foo: 'old'});
+});
