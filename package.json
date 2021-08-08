@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "Simplify writing Redux reducers with compile-time transformations",
   "scripts": {
-    "build": "tsc && node build/copy-to-dist.js",
+    "build": "ttsc && node build/copy-to-dist.js",
     "test": "jest",
     "testcov": "jest --coverage",
     "prepack": "node ../build/message.js"

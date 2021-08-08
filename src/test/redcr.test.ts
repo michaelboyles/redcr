@@ -191,3 +191,17 @@ test('Reducer with action', () => {
     expect(newState).toEqual({foo: 'new'});
     expect(oldState).toEqual({foo: 'old'});
 });
+
+test('Delete field', () => {
+    interface State {
+        foo?: string;
+    }
+    const reducer = redcr((state: State) => delete state.foo);
+
+    const oldState: State = {foo: 'old'};
+    const newState = reducer(oldState);
+
+    // TODO this should remove the whole key
+    expect(newState).toEqual({foo: undefined});
+    expect(oldState).toEqual({foo: 'old'});
+});

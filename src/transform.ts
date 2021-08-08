@@ -17,7 +17,12 @@ interface ArrayOperation {
     args: ts.Expression[];
 }
 
-type Mutation = Assignment | ArrayOperation;
+interface DeleteOperation {
+    type: 'delete',
+    accessChain: PropAccess[];
+}
+
+type Mutation = Assignment | ArrayOperation | DeleteOperation;
 
 interface ObjTreeNode {
     name: PropAccess,
@@ -85,8 +90,9 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
     const assignments = getAssignmentsInStatements(state, statements);
     checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(state, statements);
+    const deleteOps = getDeleteOperations(state, statements);
 
-    const objTree = buildObjTree([...assignments, ...arrayOps]);
+    const objTree = buildObjTree([...assignments, ...arrayOps, ...deleteOps]);
     //printObjTree(objTree);
     const stateObj = objTree.children[0];
 
@@ -146,6 +152,23 @@ function getArrayOpsInStatements(state: TransformState, statements: ts.Statement
         });
     });
     return arrayOps;
+}
+
+function getDeleteOperations(state: TransformState, statements: ts.Statement[]) {
+    const deletes: DeleteOperation[] = [];
+    statements.forEach(statement => {
+        if (!ts.isExpressionStatement(statement)) return;
+        statement.forEachChild(child => {
+            if (!ts.isDeleteExpression(child)) return;
+            if (!ts.isPropertyAccessExpression(child.expression)) return;
+            const propAccessExpr = child.expression;
+            deletes.push({
+                type: 'delete',
+                accessChain: parseAccessChain(state, propAccessExpr)
+            });
+        });
+    });
+    return deletes;
 }
 
 // Throw an error if multiple assignments cannot both be performed
@@ -278,6 +301,9 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                 ]);
             }
         }
+        else if (objTree.mutation?.type === 'delete') {
+            exprValue = ctx.factory.createIdentifier('undefined');
+        }
 
         if (!exprValue) {
             throw Error(`Expected member '${propAccessToStr(objTree.name)}' to be assigned a value, or perform an array operation`);
@@ -331,6 +357,9 @@ function printObjTree(nd: ObjTreeNode, indent: string = '') {
     }
     else if (nd.mutation?.type === 'arrayOp') {
         str += (nd.mutation.funcName + '(' + nd.mutation.args.map(arg => arg.getText()).join() + ')');
+    }
+    else if (nd.mutation?.type === 'delete') {
+        str += 'DELETE';
     }
     console.log(str);
 
