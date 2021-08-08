@@ -3,24 +3,27 @@ import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessT
 import { assertExhaustive, isExpression, TransformState } from './util';
 
 interface Assignment {
+    type: 'assignment',
     accessChain: PropAccess[];
     value: ts.Expression;
     binaryExpr: ts.BinaryExpression;
 }
 
-interface ObjTreeNode {
-    name: PropAccess,
-    path: PropAccess[],
-    assignment?: Assignment;
-    arrayOperation?: ArrayOperation;
-    children: ObjTreeNode[];
-}
-
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
 interface ArrayOperation {
+    type: 'arrayOp',
     funcName: string,
     accessChain: PropAccess[];
     args: ts.Expression[];
+}
+
+type Mutation = Assignment | ArrayOperation;
+
+interface ObjTreeNode {
+    name: PropAccess,
+    path: PropAccess[],
+    mutation?: Mutation,
+    children: ObjTreeNode[]
 }
 
 export default function(program: ts.Program, pluginOptions: object) {
@@ -29,7 +32,7 @@ export default function(program: ts.Program, pluginOptions: object) {
             const state: TransformState = {program, pluginOptions, ctx, sourceFile};
             function visitor(node: ts.Node): ts.Node {
                 try {
-                    // if (sourceFile.fileName.includes('main.ts')) {
+                    // if (sourceFile.fileName.includes('index.ts')) {
                     //     console.log(strKind(node));
                     //     console.log(node.getFullText());
                     //     console.log();
@@ -83,7 +86,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
     checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(state, statements);
 
-    const objTree = buildObjTree(assignments, arrayOps);
+    const objTree = buildObjTree([...assignments, ...arrayOps]);
     //printObjTree(objTree);
     const stateObj = objTree.children[0];
 
@@ -111,6 +114,7 @@ function getAssignmentsInStatements(state: TransformState, statements: ts.Statem
         const binaryExpr = statement.expression;
         if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
         assignments.push({
+            type: 'assignment',
             accessChain: parseAccessChain(state, binaryExpr.left),
             value: binaryExpr.right,
             binaryExpr
@@ -133,6 +137,7 @@ function getArrayOpsInStatements(state: TransformState, statements: ts.Statement
                 const accessChain = parseAccessChain(state, propAccessExpr);
                 accessChain.pop(); // Remove the name of the function
                 arrayOps.push({
+                    type: 'arrayOp',
                     funcName,
                     args: child.arguments.map(arg => arg),
                     accessChain
@@ -154,42 +159,24 @@ function checkConflictingAssignments(assignments: Assignment[]) {
     })
 }
 
-function buildObjTree(assignments: Assignment[], arrayOps: ArrayOperation[]): ObjTreeNode {
+function buildObjTree(mutations: Mutation[]): ObjTreeNode {
     const root: ObjTreeNode = {
         name: null as any,
         children: [],
         path: []
     };
 
-    assignments.forEach(assignment => {
+    mutations.forEach(mutation => {
         let currentNode: ObjTreeNode = root;
-        assignment.accessChain.forEach((propAccess, idx) => {
+        mutation.accessChain.forEach((propAccess, idx) => {
             let childNode = currentNode.children.find(child => isPropAccessEqual(child.name, propAccess));
-            const isLast = idx === (assignment.accessChain.length - 1);
+            const isLast = idx === (mutation.accessChain.length - 1);
             if (!childNode) {
                 childNode = {
                     name: propAccess,
                     children: [],
                     path: [...currentNode.path, propAccess],
-                    ...(isLast ? { assignment } : {})
-                };
-                currentNode.children.push(childNode);
-            }
-            currentNode = childNode;
-        })
-    });
-    // TODO very similar to above... generalise?
-    arrayOps.forEach(arrayOp => {
-        let currentNode: ObjTreeNode = root;
-        arrayOp.accessChain.forEach((propAccess, idx) => {
-            let childNode = currentNode.children.find(child => isPropAccessEqual(child.name, propAccess));
-            const isLast = idx === (arrayOp.accessChain.length - 1);
-            if (!childNode) {
-                childNode = {
-                    name: propAccess,
-                    children: [],
-                    path: [...currentNode.path, propAccess],
-                    ...(isLast ? { arrayOperation: arrayOp } : {})
+                    ...(isLast ? { mutation } : {})
                 };
                 currentNode.children.push(childNode);
             }
@@ -219,12 +206,12 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                         ]),
                         ctx.factory.createObjectLiteralExpression(
                             objTree.children.map(child => {
-                                    if (!child.assignment) throw Error();
-                                    return ctx.factory.createPropertyAssignment(
-                                        getPropertyName(ctx, child.name),
-                                        child.assignment.value
-                                    )
-                                })
+                                if (child.mutation?.type !== 'assignment') throw Error();
+                                return ctx.factory.createPropertyAssignment(
+                                    getPropertyName(ctx, child.name),
+                                    child.mutation.value
+                                )
+                            })
                         )
                     ]
                 )
@@ -244,19 +231,19 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
     }
     else {
         let exprValue: ts.Expression | null = null;
-        if (objTree.assignment) {
-            exprValue = objTree.assignment.value;
+        if (objTree.mutation?.type === 'assignment') {
+            exprValue = objTree.mutation.value;
         }
-        else if (objTree.arrayOperation) {
-            if (objTree.arrayOperation.funcName === 'push') {
+        else if (objTree.mutation?.type === 'arrayOp') {
+            if (objTree.mutation.funcName === 'push') {
                 exprValue = ctx.factory.createArrayLiteralExpression([
                     ctx.factory.createSpreadElement(
                         createChainedPropertyExpr(ctx, objTree.path)
                     ),
-                    ...objTree.arrayOperation.args
+                    ...objTree.mutation.args
                 ]);
             }
-            else if (objTree.arrayOperation.funcName === 'pop') {
+            else if (objTree.mutation.funcName === 'pop') {
                 exprValue = ctx.factory.createCallExpression(
                     ctx.factory.createPropertyAccessExpression(
                         createChainedPropertyExpr(ctx, objTree.path), 'slice'
@@ -273,7 +260,7 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                     ]
                 );
             }
-            else if (objTree.arrayOperation.funcName === 'shift') {
+            else if (objTree.mutation.funcName === 'shift') {
                 exprValue = ctx.factory.createCallExpression(
                     ctx.factory.createPropertyAccessExpression(
                         createChainedPropertyExpr(ctx, objTree.path), 'slice'
@@ -282,9 +269,9 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                     [ctx.factory.createNumericLiteral(1)]
                 );
             }
-            else if (objTree.arrayOperation.funcName === 'unshift') {
+            else if (objTree.mutation.funcName === 'unshift') {
                 exprValue = ctx.factory.createArrayLiteralExpression([
-                    ...objTree.arrayOperation.args,
+                    ...objTree.mutation.args,
                     ctx.factory.createSpreadElement(
                         createChainedPropertyExpr(ctx, objTree.path)
                     )
@@ -339,11 +326,11 @@ function createChainedPropertyExpr(ctx: ts.TransformationContext, accessChain: P
 
 function printObjTree(nd: ObjTreeNode, indent: string = '') {
     let str = indent + propAccessToStr(nd.name) + ' ';
-    if (nd.assignment) {
-        str += nd.assignment.value.getText();
+    if (nd.mutation?.type === 'assignment') {
+        str += nd.mutation.value.getText();
     }
-    else if (nd.arrayOperation) {
-        str += (nd.arrayOperation.funcName + '(' + nd.arrayOperation.args.map(arg => arg.getText()).join() + ')');
+    else if (nd.mutation?.type === 'arrayOp') {
+        str += (nd.mutation.funcName + '(' + nd.mutation.args.map(arg => arg.getText()).join() + ')');
     }
     console.log(str);
 
