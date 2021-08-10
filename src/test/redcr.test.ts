@@ -204,3 +204,16 @@ test('Delete field', () => {
     expect(newState).toEqual({});
     expect(oldState).toEqual({foo: 'old'});
 });
+
+test('Dynamic field delete', () => {
+    interface State {
+        foo?: string;
+    }
+    const reducer = redcr((state: State) => delete state['foo']);
+
+    const oldState: State = {foo: 'old'};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({});
+    expect(oldState).toEqual({foo: 'old'});
+});

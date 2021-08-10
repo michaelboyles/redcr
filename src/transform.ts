@@ -160,7 +160,6 @@ function getDeleteOperations(state: TransformState, statements: ts.Statement[]) 
         if (!ts.isExpressionStatement(statement)) return;
         statement.forEachChild(child => {
             if (!ts.isDeleteExpression(child)) return;
-            if (!ts.isPropertyAccessExpression(child.expression)) return;
             const propAccessExpr = child.expression;
             deletes.push({
                 type: 'delete',
@@ -376,10 +375,10 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             ctx.factory.createVariableStatement([], [
                 ctx.factory.createVariableDeclaration(
                     ctx.factory.createObjectBindingPattern([
-                        ...deletes.map(aDelete => ctx.factory.createBindingElement(
+                        ...deletes.map((aDelete, idx) => ctx.factory.createBindingElement(
                             undefined,
-                            undefined,
-                            aDelete.name.type === 'member' ? aDelete.name.member.text : ''  // TODO
+                            getPropertyName(ctx, aDelete.name),
+                            '__deleted' + idx
                         )),
                         ctx.factory.createBindingElement(
                             ctx.factory.createToken(ts.SyntaxKind.DotDotDotToken),
