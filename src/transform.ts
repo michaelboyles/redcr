@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
-import { assertExhaustive, isExpression, strKind, TransformState } from './util';
+import { assertExhaustive, isExpression, TransformState } from './util';
+import { CodePath, parseCodePaths } from './code-paths';
 
 interface Assignment {
     type: 'assignment',
@@ -87,6 +88,19 @@ export default function(program: ts.Program, pluginOptions: object) {
 
 function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
     const { ctx } = state;
+    const codePaths: CodePath[] = parseCodePaths(state, statements);
+    return ctx.factory.createArrowFunction(
+        [],
+        [],
+        params,
+        undefined,
+        ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+        ctx.factory.createBlock(codePaths.map(path => createReturnForPath(state, params[0], path)))
+    );
+}
+
+function createReturnForPath(state: TransformState, stateParam: ts.ParameterDeclaration, codePath: CodePath) {
+    const { statements } = codePath;
     const assignments = getAssignmentsInStatements(state, statements);
     checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(state, statements);
@@ -96,18 +110,21 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
     //printObjTree(objTree);
     const stateObj = objTree.children[0];
 
-    return ctx.factory.createArrowFunction(
-        [],
-        [],
-        params,
-        undefined,
-        ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-        ctx.factory.createBlock([
-            ctx.factory.createReturnStatement(
-                convertObjTree(state, stateObj).initializer
-            )
-        ])
-    );
+    let returnStatement: ts.ReturnStatement;
+    if (!stateObj) {
+        // TODO remove this... This fixes the test named 'Conditional assignment' but it is a hack...
+        // should be smarter about building the tree so stateObj isn't null
+        returnStatement = state.ctx.factory.createReturnStatement(stateParam.initializer)
+    }
+    else {
+        returnStatement = state.ctx.factory.createReturnStatement(
+            convertObjTree(state, stateObj).initializer
+        );
+    }
+    if (codePath.condition) {
+        return state.ctx.factory.createIfStatement(codePath.condition, returnStatement);
+    }
+    return returnStatement;
 }
 
 // Get all the binary expressions which represent assignments within the given statements
@@ -348,7 +365,10 @@ function createChainedPropertyExpr(ctx: ts.TransformationContext, accessChain: P
 
 function printObjTree(nd: ObjTreeNode, indent: string = '') {
     let str = indent + propAccessToStr(nd.name) + ' ';
-    if (nd.mutation?.type === 'assignment') {
+    if (nd.path.length === 0) {
+        str = 'Object tree:';
+    }
+    else if (nd.mutation?.type === 'assignment') {
         str += nd.mutation.value.getText();
     }
     else if (nd.mutation?.type === 'arrayOp') {

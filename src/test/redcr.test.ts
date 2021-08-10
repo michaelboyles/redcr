@@ -1,14 +1,16 @@
 import { redcr } from "..";
 
+interface StringState {
+    str: string;
+};
+type OptionalStringState = Partial<StringState>;
+
 test('Simple assignment', () => {
-    interface State {
-        str: string;
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: StringState) => {
         state.str = 'new';
     });
 
-    const oldState: State = {str: 'old'};
+    const oldState: StringState = {str: 'old'};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({str: 'new'});
@@ -93,12 +95,9 @@ test('Array unshift', () => {
 });
 
 test('Arrow function with expression body', () => {
-    interface State {
-        str: string;
-    }
-    const reducer = redcr((state: State) => state.str = 'new');
+    const reducer = redcr((state: StringState) => state.str = 'new');
 
-    const oldState: State = {str: 'old'};
+    const oldState: StringState = {str: 'old'};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({str: 'new'});
@@ -106,12 +105,9 @@ test('Arrow function with expression body', () => {
 });
 
 test('Bracket notation property access', () => {
-    interface State {
-        str: string;
-    }
-    const reducer = redcr((state: State) => state['str'] = 'new');
+    const reducer = redcr((state: StringState) => state['str'] = 'new');
 
-    const oldState: State = {str: 'old'};
+    const oldState: StringState = {str: 'old'};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({str: 'new'});
@@ -177,43 +173,66 @@ test('Assign to arbitary ID of record', () => {
 });
 
 test('Reducer with action', () => {
-    interface State {
-        foo: string;
-    }
     interface Action {
         bar: string;
     }
-    const reducer = redcr((state: State, action: Action) => state.foo = action.bar);
+    const reducer = redcr((state: StringState, action: Action) => state.str = action.bar);
 
-    const oldState: State = {foo: 'old'};
+    const oldState: StringState = {str: 'old'};
     const newState = reducer(oldState, {bar: 'new'});
 
-    expect(newState).toEqual({foo: 'new'});
-    expect(oldState).toEqual({foo: 'old'});
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({str: 'old'});
 });
 
 test('Delete field', () => {
-    interface State {
-        foo?: string;
-    }
-    const reducer = redcr((state: State) => delete state.foo);
+    const reducer = redcr((state: OptionalStringState) => delete state.str);
 
-    const oldState: State = {foo: 'old'};
+    const oldState: OptionalStringState = {str: 'old'};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({});
-    expect(oldState).toEqual({foo: 'old'});
+    expect(oldState).toEqual({str: 'old'});
 });
 
 test('Dynamic field delete', () => {
-    interface State {
-        foo?: string;
-    }
-    const reducer = redcr((state: State) => delete state['foo']);
+    const reducer = redcr((state: OptionalStringState) => delete state['str']);
 
-    const oldState: State = {foo: 'old'};
+    const oldState: OptionalStringState = {str: 'old'};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({});
-    expect(oldState).toEqual({foo: 'old'});
+    expect(oldState).toEqual({str: 'old'});
+});
+
+test('Conditional assignment', () => {
+    const reducer = redcr((state: OptionalStringState, value: number) => {
+        if (value < 1000) {
+            state.str = 'condition was true'
+        }
+    });
+
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState, 50);
+
+    expect(newState).toEqual({str: 'condition was true'});
+    expect(oldState).toEqual({});
+});
+
+
+test('Else clause assignment', () => {
+    const reducer = redcr((state: OptionalStringState, value: number) => {
+        if (value < 1000) {
+            state.str = 'condition was true'
+        }
+        else {
+            state.str = 'condition was false'
+        }
+    });
+
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState, 2000);
+
+    expect(newState).toEqual({str: 'condition was false'});
+    expect(oldState).toEqual({});
 });
