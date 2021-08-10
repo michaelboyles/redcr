@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
-import { assertExhaustive, isExpression, TransformState } from './util';
+import { assertExhaustive, isExpression, strKind, TransformState } from './util';
 
 interface Assignment {
     type: 'assignment',
@@ -244,10 +244,10 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
             return ctx.factory.createPropertyAssignment(
                 getPropertyName(ctx, objTree.name),
                 ctx.factory.createObjectLiteralExpression([
-                    ctx.factory.createSpreadAssignment(
-                        createChainedPropertyExpr(ctx, objTree.path)
-                    ),
-                    ...objTree.children.map(child => convertObjTree(state, child) as ts.PropertyAssignment)
+                    createObjSpread(state, objTree),
+                    ...objTree.children
+                        .filter(child => child.mutation?.type !== 'delete')
+                        .map(child => convertObjTree(state, child))
                 ])
             );
         }
@@ -300,9 +300,6 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                     )
                 ]);
             }
-        }
-        else if (objTree.mutation?.type === 'delete') {
-            exprValue = ctx.factory.createIdentifier('undefined');
         }
 
         if (!exprValue) {
@@ -364,4 +361,47 @@ function printObjTree(nd: ObjTreeNode, indent: string = '') {
     console.log(str);
 
     nd.children.forEach(child => printObjTree(child, indent + '    '));
+}
+
+function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
+    const { ctx } = state;
+    const deletes = objTree.children.filter(child => child.children.length === 0 && child.mutation?.type === 'delete');
+    if (deletes.length === 0) {
+        return ctx.factory.createSpreadAssignment(
+            createChainedPropertyExpr(ctx, objTree.path)
+        );
+    }
+    else {
+        const block = ctx.factory.createBlock([
+            ctx.factory.createVariableStatement([], [
+                ctx.factory.createVariableDeclaration(
+                    ctx.factory.createObjectBindingPattern([
+                        ...deletes.map(aDelete => ctx.factory.createBindingElement(
+                            undefined,
+                            undefined,
+                            aDelete.name.type === 'member' ? aDelete.name.member.text : ''  // TODO
+                        )),
+                        ctx.factory.createBindingElement(
+                            ctx.factory.createToken(ts.SyntaxKind.DotDotDotToken),
+                            undefined, 'rest'
+                        )
+                    ]),
+                    undefined, undefined,
+                    createChainedPropertyExpr(ctx, objTree.path)
+                )
+            ]),
+            ctx.factory.createReturnStatement(ctx.factory.createIdentifier('rest'))
+        ]);
+
+        return ctx.factory.createSpreadAssignment(
+            ctx.factory.createCallExpression(
+                ctx.factory.createArrowFunction(
+                    [], [], [], undefined,
+                    ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                    block
+                ),
+                [], []
+            )
+        );
+    }
 }

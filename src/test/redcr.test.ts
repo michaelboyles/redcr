@@ -201,7 +201,6 @@ test('Delete field', () => {
     const oldState: State = {foo: 'old'};
     const newState = reducer(oldState);
 
-    // TODO this should remove the whole key
-    expect(newState).toEqual({foo: undefined});
+    expect(newState).toEqual({});
     expect(oldState).toEqual({foo: 'old'});
 });
