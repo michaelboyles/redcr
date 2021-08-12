@@ -99,7 +99,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
     );
 }
 
-function createReturnForPath(state: TransformState, stateParam: ts.ParameterDeclaration, codePath: CodePath) {
+function createReturnForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath) {
     const { statements } = codePath;
     const assignments = getAssignmentsInStatements(state, statements);
     checkConflictingAssignments(assignments);
@@ -108,19 +108,16 @@ function createReturnForPath(state: TransformState, stateParam: ts.ParameterDecl
 
     const objTree = buildObjTree([...assignments, ...arrayOps, ...deleteOps]);
     //printObjTree(objTree);
-    const stateObj = objTree.children[0];
+    const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === target.name.getText());
 
-    let returnStatement: ts.ReturnStatement;
-    if (!stateObj) {
-        // TODO remove this... This fixes the test named 'Conditional assignment' but it is a hack...
-        // should be smarter about building the tree so stateObj isn't null
-        returnStatement = state.ctx.factory.createReturnStatement(stateParam.initializer)
+    if (!targetNode) {
+        // The target of the mutation wasn't changed for this path
+        return state.ctx.factory.createReturnStatement(target.initializer);
     }
-    else {
-        returnStatement = state.ctx.factory.createReturnStatement(
-            convertObjTree(state, stateObj).initializer
-        );
-    }
+
+    const returnStatement = state.ctx.factory.createReturnStatement(
+        convertObjTree(state, targetNode).initializer
+    );
     if (codePath.condition) {
         return state.ctx.factory.createIfStatement(codePath.condition, returnStatement);
     }
