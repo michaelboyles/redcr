@@ -17,6 +17,18 @@ test('Simple assignment', () => {
     expect(oldState).toEqual({str: 'old'});
 });
 
+test('Non-null assert assignment', () => {
+    const reducer = redcr((state: StringState) => {
+        state!.str = 'new';
+    });
+
+    const oldState: StringState = {str: 'old'};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({str: 'old'});
+});
+
 test('Nested assignment', () => {
     interface State {
         child: {
