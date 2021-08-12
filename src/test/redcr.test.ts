@@ -261,3 +261,15 @@ test('Assignment using local variable', () => {
     expect(newState).toEqual({str: 'local variable'});
     expect(oldState).toEqual({});
 });
+
+test('Reducer is an anonymous function', () => {
+    const reducer = redcr(function(state: OptionalStringState) {
+        state.str = 'new';
+    });
+
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({});
+});

@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
-import { assertExhaustive, isExpression, TransformState } from './util';
+import { assertExhaustive, isExpression, strKind, TransformState } from './util';
 import { CodePath, parseCodePaths } from './code-paths';
 
 interface BaseMutation {
@@ -51,22 +51,22 @@ export default function(program: ts.Program, pluginOptions: object) {
                                 if (node.arguments.length !== 1) {
                                     throw new Error("redcr must be given precisely 1 argument, found: " + node.arguments.length);
                                 }
-                                const arrowFunction = node.arguments[0];
-                                if (!ts.isArrowFunction(arrowFunction)) {
-                                    throw new Error("redcr must be given an arrow function");   
+                                const reducer = node.arguments[0];
+                                if (!ts.isArrowFunction(reducer) && !ts.isFunctionExpression(reducer)) {
+                                    throw Error("redcr must be given a function, got " + strKind(reducer));   
                                 }
-                                const params = arrowFunction.parameters.map(i => i);
-                                if (ts.isBlock(arrowFunction.body)) {
-                                    arrowFunction.parameters
+                                const params = reducer.parameters.map(i => i);
+                                if (ts.isBlock(reducer.body)) {
+                                    reducer.parameters
                                     return replaceReducer(
                                         state, params,
-                                        arrowFunction.body.statements.map(i => i)
+                                        reducer.body.statements.map(i => i)
                                     );
                                 }
-                                else if (isExpression(arrowFunction.body)) {
+                                else if (isExpression(reducer.body)) {
                                     return replaceReducer(
                                         state, params,
-                                        [ctx.factory.createExpressionStatement(arrowFunction.body)]
+                                        [ctx.factory.createExpressionStatement(reducer.body)]
                                     );
                                 }
                                 throw new Error("Unknown arrow function body type");
