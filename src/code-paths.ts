@@ -44,12 +44,16 @@ function parseCodePathsImpl(state: TransformState, statements: ts.Statement[], c
 }
 
 function explodeBlocks(statements: ts.Statement[]): ts.Statement[] {
-    return statements.flatMap(statement => {
+    const ret: ts.Statement[] = [];
+     statements.forEach(statement => {
         if (ts.isBlock(statement)) {
-            return explodeBlocks(statement.statements.map(i => i));
+            explodeBlocks(statement.statements.map(i => i)).forEach(st => ret.push(st));
         }
-        return statement;
-    })
+        else {
+            ret.push(statement);
+        }
+    });
+    return ret;
 }
 
 export function printCodePath(path: CodePath) {

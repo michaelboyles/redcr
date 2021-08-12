@@ -5,8 +5,16 @@ module.exports = {
   globals: {
     'ts-jest': {
       compiler: 'ttypescript',
-      tsconfig: './src/test/tsconfig-test.json',
+      tsconfig: {
+        moduleResolution: 'Node',
+        esModuleInterop: true,
+        strict: true,
+        allowJs: true,
+        plugins: [
+          { "transform": "./src/transform.ts" }
+        ]
+      },
       diagnostics: false //TODO work out why type-checking fails
-    },
+    }
   }
 };
