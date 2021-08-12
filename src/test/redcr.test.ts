@@ -237,15 +237,15 @@ test('Else clause assignment', () => {
     expect(oldState).toEqual({});
 });
 
-// test('Assignment using local variable', () => {
-//     const reducer = redcr((state: OptionalStringState) => {
-//         let msg = 'local variable';
-//         state.str = msg;
-//     });
+test('Assignment using local variable', () => {
+    const reducer = redcr((state: OptionalStringState) => {
+        let msg = 'local variable';
+        state.str = msg;
+    });
 
-//     const oldState: OptionalStringState = {};
-//     const newState = reducer(oldState);
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState);
 
-//     expect(newState).toEqual({str: 'local variable'});
-//     expect(oldState).toEqual({});
-// });
+    expect(newState).toEqual({str: 'local variable'});
+    expect(oldState).toEqual({});
+});

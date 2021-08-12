@@ -4,7 +4,7 @@
   "description": "Simplify writing Redux reducers with compile-time transformations",
   "scripts": {
     "build": "ttsc && node build/copy-to-dist.js",
-    "test": "jest",
+    "test": "jest --clearCache && jest",
     "instrument": "istanbul instrument dist/ -o coverage/instrumented/",
     "testcov": "npm run instrument && jest --clearCache && nyc --reporter=lcov jest --config jest-cov.config.js",
     "prepack": "node ../build/message.js"

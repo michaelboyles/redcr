@@ -3,24 +3,26 @@ import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessT
 import { assertExhaustive, isExpression, TransformState } from './util';
 import { CodePath, parseCodePaths } from './code-paths';
 
-interface Assignment {
-    type: 'assignment',
+interface BaseMutation {
+    statement: ts.Statement;
     accessChain: PropAccess[];
+}
+
+interface Assignment extends BaseMutation {
+    type: 'assignment',
     value: ts.Expression;
     binaryExpr: ts.BinaryExpression;
 }
 
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
-interface ArrayOperation {
+interface ArrayOperation extends BaseMutation {
     type: 'arrayOp',
     funcName: string,
-    accessChain: PropAccess[];
     args: ts.Expression[];
 }
 
-interface DeleteOperation {
-    type: 'delete',
-    accessChain: PropAccess[];
+interface DeleteOperation extends BaseMutation {
+    type: 'delete'
 }
 
 type Mutation = Assignment | ArrayOperation | DeleteOperation;
@@ -95,33 +97,50 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
         params,
         undefined,
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-        ctx.factory.createBlock(codePaths.map(path => createReturnForPath(state, params[0], path)))
+        ctx.factory.createBlock(
+            codePaths.reduce((statements: ts.Statement[], path) => statements.concat(createStatementsForPath(state, params[0], path)), [])
+        )
     );
 }
 
-function createReturnForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath) {
+function createStatementsForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath): ts.Statement[] {
     const { statements } = codePath;
     const assignments = getAssignmentsInStatements(state, statements);
-    checkConflictingAssignments(assignments);
     const arrayOps = getArrayOpsInStatements(state, statements);
     const deleteOps = getDeleteOperations(state, statements);
+    checkConflictingAssignments(assignments);
 
-    const objTree = buildObjTree([...assignments, ...arrayOps, ...deleteOps]);
+    const allMutations = [...assignments, ...arrayOps, ...deleteOps];
+    const objTree = buildObjTree(allMutations);
     //printObjTree(objTree);
     const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === target.name.getText());
 
     if (!targetNode) {
         // The target of the mutation wasn't changed for this path
-        return state.ctx.factory.createReturnStatement(target.initializer);
+        return [
+            ...statements,
+            state.ctx.factory.createReturnStatement(target.initializer)
+        ]
     }
 
-    const returnStatement = state.ctx.factory.createReturnStatement(
-        convertObjTree(state, targetNode).initializer
+    const nonMutationStatements = statements.filter(statement =>
+        !allMutations.map(mutation => mutation.statement).includes(statement)
     );
+    const statementsWithReturn = [
+        ...nonMutationStatements,
+        state.ctx.factory.createReturnStatement(
+            convertObjTree(state, targetNode).initializer
+        )
+    ];
     if (codePath.condition) {
-        return state.ctx.factory.createIfStatement(codePath.condition, returnStatement);
+        return [
+            state.ctx.factory.createIfStatement(
+                codePath.condition,
+                state.ctx.factory.createBlock(statementsWithReturn)
+            )
+        ];
     }
-    return returnStatement;
+    return statementsWithReturn;
 }
 
 // Get all the binary expressions which represent assignments within the given statements
@@ -137,7 +156,8 @@ function getAssignmentsInStatements(state: TransformState, statements: ts.Statem
             type: 'assignment',
             accessChain: parseAccessChain(state, binaryExpr.left),
             value: binaryExpr.right,
-            binaryExpr
+            binaryExpr,
+            statement
         });
     });
     return assignments;
@@ -160,7 +180,8 @@ function getArrayOpsInStatements(state: TransformState, statements: ts.Statement
                     type: 'arrayOp',
                     funcName,
                     args: child.arguments.map(arg => arg),
-                    accessChain
+                    accessChain,
+                    statement
                 });
             }
         });
@@ -177,7 +198,8 @@ function getDeleteOperations(state: TransformState, statements: ts.Statement[]) 
             const propAccessExpr = child.expression;
             deletes.push({
                 type: 'delete',
-                accessChain: parseAccessChain(state, propAccessExpr)
+                accessChain: parseAccessChain(state, propAccessExpr),
+                statement
             });
         });
     });
