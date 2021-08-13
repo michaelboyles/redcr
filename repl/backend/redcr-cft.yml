@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Redcr REPL
+Parameters:
+    CorsAllowOrigin:
+        Description: URL to use in CORS allow-origin headers. An asterisk means any URL is permitted.
+        Type: String
+        Default: "*"
+        MinLength: 1
+    ServerCodeBucket:
+        Description: The name of the S3 bucket containing the server's zipped code bundle
+        Type: String
+        MinLength: 1
+        Default: michaels-default
+    ServerCodeFilename:
+        Description: The filename of the server's zipped code bundle within the given S3 bucket
+        Type: String
+        Default: redcr.zip
+        MinLength: 1
+Resources:
+    IAMRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub ${AWS::StackName}-RedcrRole
+            Path: /
+            AssumeRolePolicyDocument: 
+                '{
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service":"lambda.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        }
+                    ]
+                }'
+            MaxSessionDuration: 3600
+
+    LambdaConvert:
+        Type: AWS::Lambda::Function
+        Properties:
+            Description: Handles GET requests to convert TypeScript code to the equivalent compiled with Redcr
+            FunctionName: !Sub ${AWS::StackName}-convert
+            Runtime: nodejs14.x
+            MemorySize: 128
+            Handler: convert.handler
+            Code: 
+                S3Bucket: !Ref ServerCodeBucket
+                S3Key: !Ref ServerCodeFilename
+            Role: !GetAtt IAMRole.Arn
+            Timeout: 3
+            TracingConfig: 
+                Mode: PassThrough
+            Environment:
+                Variables:
+                    CORS_ALLOW_ORIGIN: !Ref CorsAllowOrigin
+
+    LambdaPermissionConvert:
+        Type: AWS::Lambda::Permission
+        Properties:
+            Action: lambda:InvokeFunction
+            FunctionName: !GetAtt LambdaConvert.Arn
+            Principal: apigateway.amazonaws.com
+            SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/*/*
+
+    ApiGatewayRestApi:
+        Type: AWS::ApiGateway::RestApi
+        Properties:
+            Name: !Sub ${AWS::StackName}-redcr-API
+            Description: REST API for Redcr REPL
+            ApiKeySourceType: HEADER
+            EndpointConfiguration: 
+                Types: 
+                  - REGIONAL
+
+    ApiGatewayResourceConvert:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+            RestApiId: !Ref ApiGatewayRestApi
+            PathPart: convert
+            ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+
+    ApiGatewayMethodConvertOPTIONS:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayRestApi
+            ResourceId: !Ref ApiGatewayResourceConvert
+            HttpMethod: OPTIONS
+            AuthorizationType: NONE
+            ApiKeyRequired: false
+            RequestParameters: {}
+            MethodResponses: 
+              - ResponseModels: 
+                    "application/json": Empty
+                ResponseParameters: 
+                    "method.response.header.Access-Control-Allow-Origin": true
+                    "method.response.header.Access-Control-Allow-Methods": true
+                StatusCode: 200
+            Integration:
+                Type: MOCK
+                CacheNamespace: !Ref ApiGatewayResourceConvert
+                IntegrationResponses: 
+                  - ResponseParameters: 
+                        "method.response.header.Access-Control-Allow-Origin": !Sub "'${CorsAllowOrigin}'"
+                        "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'"
+                    ResponseTemplates: {}
+                    StatusCode: 200
+                PassthroughBehavior: WHEN_NO_MATCH
+                RequestTemplates: 
+                    "application/json": "{\"statusCode\": 200}"
+                TimeoutInMillis: 29000
+
+    ApiGatewayMethodConvertGET:
+        Type: AWS::ApiGateway::Method
+        Properties:
+            RestApiId: !Ref ApiGatewayRestApi
+            ResourceId: !Ref ApiGatewayResourceConvert
+            HttpMethod: GET
+            AuthorizationType: NONE
+            ApiKeyRequired: false
+            RequestParameters:
+                "method.request.querystring.code": true
+            MethodResponses: 
+              - ResponseModels: 
+                    "application/json": Empty
+                ResponseParameters: 
+                    "method.response.header.Access-Control-Allow-Origin": false
+                StatusCode: "200"
+            RequestValidatorId: !Ref ApiGatewayBodyAndParameterValidator
+            Integration: 
+                CacheNamespace: !Ref ApiGatewayResourceConvert
+                ContentHandling: CONVERT_TO_TEXT
+                IntegrationHttpMethod: POST
+                IntegrationResponses: 
+                  - ResponseParameters: 
+                        "method.response.header.Access-Control-Allow-Origin": !Sub "'${CorsAllowOrigin}'"
+                    ResponseTemplates: {}
+                    StatusCode: 200
+                PassthroughBehavior: WHEN_NO_MATCH
+                TimeoutInMillis: 29000
+                Type: AWS_PROXY
+                Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${LambdaConvert}/invocations
+
+    ApiGatewayBodyAndParameterValidator:
+        Type: AWS::ApiGateway::RequestValidator
+        Properties: 
+            RestApiId: !Ref ApiGatewayRestApi
+            ValidateRequestBody: true
+            ValidateRequestParameters: true
+
+    ApiGatewayStage:
+        Type: AWS::ApiGateway::Stage
+        Properties:
+            StageName: default
+            DeploymentId: !Ref ApiGatewayDeployment
+            RestApiId: !Ref ApiGatewayRestApi
+            CacheClusterEnabled: false
+            MethodSettings: 
+              - ResourcePath: "/*"
+                HttpMethod: "*"
+                CacheDataEncrypted: false
+                CachingEnabled: false
+                DataTraceEnabled: false
+                MetricsEnabled: false
+            TracingEnabled: false
+    
+    ApiGatewayDeployment:
+        Type: AWS::ApiGateway::Deployment
+        DependsOn: [
+            ApiGatewayMethodConvertOPTIONS,
+            ApiGatewayMethodConvertGET
+        ]
+        Properties:
+            RestApiId: !Ref ApiGatewayRestApi
+Outputs:
+  URL:
+    Description: URL to use in client
+    Value: !Sub https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/default
