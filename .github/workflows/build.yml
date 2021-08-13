@@ -7,8 +7,11 @@ on:
     branches: [ develop ]
 
 jobs:
-  build:
+  build-core:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./core
 
     strategy:
       matrix:
