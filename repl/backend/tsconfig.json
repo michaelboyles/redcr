@@ -4,9 +4,6 @@
     "compilerOptions": {
         "moduleResolution": "node",
         "target": "ES2019",
-        "strict": false,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
-        "noImplicitReturns": true
+        "strict": false
     }
 }

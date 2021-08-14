@@ -3,6 +3,8 @@ import * as React from "react";
 import { useCallback, useState } from "react";
 import { debounce } from "lodash";
 
+const apiUrl = 'https://506xbpf82d.execute-api.eu-west-2.amazonaws.com/default';
+
 const defaultLeft = `import { redcr } from 'redcr';
 
 interface StringState {
@@ -29,7 +31,7 @@ export const Editor = () => {
         debounce(async (newSource: string) => {
             setIsFetching(true);
 
-            const resp = await fetch(`https://kcerramqp1.execute-api.eu-west-2.amazonaws.com/default/convert?code=${encodeURIComponent(newSource)}`)
+            const resp = await fetch(`${apiUrl}/convert?code=${encodeURIComponent(newSource)}`)
             if (resp.ok) {
                 const text = await resp.text();
                 setRightText(text);
@@ -43,7 +45,8 @@ export const Editor = () => {
         <>
             <DiffEditor
                 height="90vh"
-                language="typescript"
+                originalLanguage="typescript"
+                modifiedLanguage="javascript"
                 original={defaultLeft}
                 modified={rightText}
                 options={{
