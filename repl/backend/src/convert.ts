@@ -1,6 +1,7 @@
 import type { Handler } from 'aws-lambda';
 import * as ts from "typescript"; 
 import transform from '../../../core/src/transform';
+import * as tsvfs from '@typescript/vfs';
 
 interface ApiGatewayRequest {
     body: string;
@@ -24,44 +25,39 @@ const CORS_HEADERS = {
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,PATCH'
 };
 
-function tsCompile(source: string): string {
+async function tsCompile(source: string): Promise<string> {
     const compilerOptions: ts.CompilerOptions = {
         module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2021
-    } 
+        target: ts.ScriptTarget.ES2020
+    }
+
+    // https://www.typescriptlang.org/dev/typescript-vfs/
+    const fsMap = tsvfs.createDefaultMapFromNodeModules(compilerOptions);
+    fsMap.set('/index.ts', source);    
+    
+    const system = tsvfs.createSystem(fsMap);
+    const host = tsvfs.createVirtualCompilerHost(system, compilerOptions, ts);
+    
     const program = ts.createProgram({
-        rootNames: ['input'],
-        options: compilerOptions
+      rootNames: [...fsMap.keys()],
+      options: compilerOptions,
+      host: host.compilerHost
     });
 
-    const options: ts.TranspileOptions = {
-        compilerOptions,
-        transformers: {
-            before: [
-                transform(program, {})
-            ]
+    program.emit(
+        program.getSourceFile('/index.ts'), undefined, undefined, false, {
+            before: [transform(program, {})]
         }
-    };
-    return ts.transpileModule(source, options).outputText;
+    );
+    return fsMap.get('/index.js');
 }
-
-
-console.log(tsCompile(`
-interface StringState {
-    a: number[];
-}
-
-const fooReducer = redcr((state: StringState) => {
-    state.a[0] = 1;
-});
-`))
 
 export const handler: Handler<ApiGatewayRequest, ApiGatewayResponse> = async (event: ApiGatewayRequest, _ctx) => {
     const code = decodeURIComponent(event.queryStringParameters.code);
 
     const response: ApiGatewayResponse = {
         statusCode: 200,
-        body: tsCompile(code),
+        body: await tsCompile(code),
         headers: CORS_HEADERS
     };
     return response;

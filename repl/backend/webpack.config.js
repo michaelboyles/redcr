@@ -1,6 +1,7 @@
 module.exports = {
     name: 'Server',
-    mode: 'production',
+    mode: 'development',
+    devtool: false,
     entry: {
         'convert': './src/convert.ts'
     },

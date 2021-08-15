@@ -3,7 +3,7 @@ import * as React from "react";
 import { useCallback, useState } from "react";
 import { debounce } from "lodash";
 
-const apiUrl = 'https://506xbpf82d.execute-api.eu-west-2.amazonaws.com/default';
+const apiUrl = 'https://80v1fo5pbd.execute-api.eu-west-2.amazonaws.com/default';
 
 const defaultLeft = `import { redcr } from 'redcr';
 

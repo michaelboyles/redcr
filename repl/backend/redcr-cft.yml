@@ -43,13 +43,13 @@ Resources:
             Description: Handles GET requests to convert TypeScript code to the equivalent compiled with Redcr
             FunctionName: !Sub ${AWS::StackName}-convert
             Runtime: nodejs14.x
-            MemorySize: 128
+            MemorySize: 1024
             Handler: convert.handler
             Code: 
                 S3Bucket: !Ref ServerCodeBucket
                 S3Key: !Ref ServerCodeFilename
             Role: !GetAtt IAMRole.Arn
-            Timeout: 3
+            Timeout: 5
             TracingConfig: 
                 Mode: PassThrough
             Environment:
