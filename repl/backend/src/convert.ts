@@ -28,7 +28,7 @@ const CORS_HEADERS = {
 
 async function tsCompile(source: string): Promise<string> {
     const compilerOptions: ts.CompilerOptions = {
-        module: ts.ModuleKind.CommonJS,
+        module: ts.ModuleKind.ES2020,
         target: ts.ScriptTarget.ES2020
     }
 
