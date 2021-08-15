@@ -1,9 +1,10 @@
-import { DiffEditor, Monaco } from "@monaco-editor/react";
+import * as monaco from 'monaco-editor';
 import * as React from "react";
-import { useCallback, useState } from "react";
+import { DiffEditor, Monaco } from "@monaco-editor/react";
+import { useCallback, useEffect, useState } from "react";
 import { debounce } from "lodash";
 
-const apiUrl = 'https://80v1fo5pbd.execute-api.eu-west-2.amazonaws.com/default';
+const apiUrl = 'https://1p4eospzg9.execute-api.eu-west-2.amazonaws.com/default';
 
 const defaultLeft = `import { redcr } from 'redcr';
 
@@ -17,31 +18,44 @@ const reducer = redcr((state: StringState) => {
 `;
 
 export const Editor = () => {
-    const [rightText, setRightText] = useState(defaultLeft);
+    const [rightText, setRightText] = useState('');
     const [isFetching, setIsFetching] = useState(false);
+    const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>();
 
     const configureMonaco = (monaco: Monaco) => {
         monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
             diagnosticCodesToIgnore: [2792] // Unknown imports
         });
     }
-    
-    const doUpdate = useCallback(
-        debounce(async (newSource: string) => {
-            setIsFetching(true);
 
-            const resp = await fetch(`${apiUrl}/convert?code=${encodeURIComponent(newSource)}`)
-            if (resp.ok) {
-                const text = await resp.text();
-                setRightText(text);
-                setIsFetching(false);
-            }
-        }, 500),
-        [setRightText]
+    const fetchCodeNow = useCallback(async (newSource: string) => {
+        setIsFetching(true);
+
+        const resp = await fetch(`${apiUrl}/convert?code=${encodeURIComponent(newSource)}`)
+        if (resp.ok) {
+            const text = await resp.text();
+            setRightText(text);
+            setIsFetching(false);
+        }
+    }, [setIsFetching, setRightText]);
+
+    const fetchCode = useCallback(
+        debounce(fetchCodeNow, 500), [fetchCodeNow]
     );
+
+    useEffect(() => {
+        fetchCodeNow(defaultLeft);
+    }, []);
+
+    const formatCode = () => {
+        if (editor) {
+            editor.getOriginalEditor().getAction('editor.action.formatDocument').run();
+        }
+    };
 
     return (
         <>
+            <button onClick={formatCode}>Format</button>
             <DiffEditor
                 height="90vh"
                 originalLanguage="typescript"
@@ -53,9 +67,10 @@ export const Editor = () => {
                     readOnly: true
                 }}
                 beforeMount={configureMonaco}
-                onMount={(editor) => {
+                onMount={editor => {
+                    setEditor(editor);
                     editor.getOriginalEditor().onDidChangeModelContent(
-                        () => doUpdate(editor.getOriginalEditor().getValue())
+                        () => fetchCode(editor.getOriginalEditor().getValue())
                     )
                 }}
             />

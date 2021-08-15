@@ -2,6 +2,7 @@ import type { Handler } from 'aws-lambda';
 import * as ts from "typescript"; 
 import transform from '../../../core/src/transform';
 import * as tsvfs from '@typescript/vfs';
+import { js as beautify } from 'js-beautify';
 
 interface ApiGatewayRequest {
     body: string;
@@ -49,7 +50,7 @@ async function tsCompile(source: string): Promise<string> {
             before: [transform(program, {})]
         }
     );
-    return fsMap.get('/index.js');
+    return beautify(fsMap.get('/index.js'));
 }
 
 export const handler: Handler<ApiGatewayRequest, ApiGatewayResponse> = async (event: ApiGatewayRequest, _ctx) => {
