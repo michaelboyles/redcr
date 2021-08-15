@@ -56,7 +56,7 @@ Then in your `tsconfig.json` add the transformation:
 {
     "compilerOptions": {
         "plugins": [
-            { "transform": "./node_modules/redcr/transform.js" },
+            { "transform": "redcr/transform" },
         ]
     }
 }
