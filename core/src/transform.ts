@@ -45,7 +45,12 @@ export default function(program: ts.Program, pluginOptions: object) {
                     //     console.log(node.getFullText());
                     //     console.log();
                     // }
-                    if (ts.isCallExpression(node)) {
+                    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+                        if (node.moduleSpecifier.text === 'redcr') {
+                            return null as any;
+                        }
+                    }
+                    else if (ts.isCallExpression(node)) {
                         if (ts.isIdentifier(node.expression)) {
                             if (node.expression.text === 'redcr') {
                                 if (node.arguments.length !== 1) {
