@@ -21,8 +21,7 @@ export const Editor = () => {
     const [isFetching, setIsFetching] = useState(false);
 
     const configureMonaco = (monaco: Monaco) => {
-        // TODO Supposed to suppress the warning but doesn't
-        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
             diagnosticCodesToIgnore: [2792] // Unknown imports
         });
     }
