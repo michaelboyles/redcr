@@ -122,9 +122,12 @@ function createStatementsForPath(state: TransformState, target: ts.ParameterDecl
 
     if (!targetNode) {
         // The target of the mutation wasn't changed for this path
+        if (!ts.isIdentifier(target.name)) {
+            throw Error("Can't destructure here")
+        }
         return [
             ...statements,
-            state.ctx.factory.createReturnStatement(target.initializer)
+            state.ctx.factory.createReturnStatement(target.name)
         ]
     }
 

@@ -217,7 +217,7 @@ test('Dynamic field delete', () => {
     expect(oldState).toEqual({str: 'old'});
 });
 
-test('Conditional assignment', () => {
+test('Conditional assignment is true', () => {
     const reducer = redcr((state: OptionalStringState, value: number) => {
         if (value < 1000) {
             state.str = 'condition was true'
@@ -231,6 +231,19 @@ test('Conditional assignment', () => {
     expect(oldState).toEqual({});
 });
 
+test('Conditional assignment is false', () => {
+    const reducer = redcr((state: OptionalStringState, value: number) => {
+        if (value < 1000) {
+            state.str = 'condition was true'
+        }
+    });
+
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState, 2000);
+
+    expect(newState).toEqual({});
+    expect(oldState).toEqual({});
+});
 
 test('Else clause assignment', () => {
     const reducer = redcr((state: OptionalStringState, value: number) => {
