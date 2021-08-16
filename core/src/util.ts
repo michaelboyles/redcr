@@ -38,3 +38,14 @@ export function isExpression(node: ts.Node): node is ts.Expression {
 export function assertExhaustive(arg: never) {
     return arg;
 }
+
+interface AssignmentStatement extends ts.ExpressionStatement {
+    expression: ts.AssignmentExpression<any>;
+}
+
+export function isAssignment(node: ts.Node): node is AssignmentStatement {
+    if (!ts.isExpressionStatement(node)) return false;
+    if (!ts.isBinaryExpression(node.expression)) return false;
+    const operator = node.expression.operatorToken.kind;
+    return operator === ts.SyntaxKind.EqualsToken || operator === ts.SyntaxKind.PlusEqualsToken;
+}

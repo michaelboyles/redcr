@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
-import { isPropAccessEqual, isSubPath, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
-import { assertExhaustive, isExpression, strKind, TransformState } from './util';
+import { isPropAccessEqual, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
+import { assertExhaustive, isAssignment, isExpression, strKind, TransformState } from './util';
 import { CodePath, parseCodePaths } from './code-paths';
 
 interface BaseMutation {
@@ -10,6 +10,12 @@ interface BaseMutation {
 
 interface Assignment extends BaseMutation {
     type: 'assignment',
+    value: ts.Expression;
+    binaryExpr: ts.BinaryExpression;
+}
+
+interface StringConcat extends BaseMutation {
+    type: 'stringConcat',
     value: ts.Expression;
     binaryExpr: ts.BinaryExpression;
 }
@@ -25,7 +31,7 @@ interface DeleteOperation extends BaseMutation {
     type: 'delete'
 }
 
-type Mutation = Assignment | ArrayOperation | DeleteOperation;
+type Mutation = Assignment | StringConcat | ArrayOperation | DeleteOperation;
 
 interface ObjTreeNode {
     name: PropAccess,
@@ -113,7 +119,6 @@ function createStatementsForPath(state: TransformState, target: ts.ParameterDecl
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
     const deleteOps = getDeleteOperations(state, statements);
-    checkConflictingAssignments(assignments);
 
     const allMutations = [...assignments, ...arrayOps, ...deleteOps];
     const objTree = buildObjTree(allMutations);
@@ -153,20 +158,19 @@ function createStatementsForPath(state: TransformState, target: ts.ParameterDecl
 
 // Get all the binary expressions which represent assignments within the given statements
 function getAssignmentsInStatements(state: TransformState, statements: ts.Statement[]) {
-    const assignments: Assignment[] = [];
+    const assignments: Mutation[] = [];
 
     statements.forEach(statement => {
-        if (!ts.isExpressionStatement(statement)) return;
-        if (!ts.isBinaryExpression(statement.expression)) return;
-        const binaryExpr = statement.expression;
-        if (binaryExpr.operatorToken.kind !== ts.SyntaxKind.EqualsToken) return;
-        assignments.push({
-            type: 'assignment',
-            accessChain: parseAccessChain(state, binaryExpr.left),
-            value: binaryExpr.right,
-            binaryExpr,
-            statement
-        });
+        if (isAssignment(statement)) {
+            const binaryExpr = statement.expression;
+            const accessChain = parseAccessChain(state, binaryExpr.left);
+            const type = binaryExpr.operatorToken.kind === ts.SyntaxKind.EqualsToken ? 'assignment' : 'stringConcat';
+            assignments.push({
+                type,
+                value: binaryExpr.right,
+                binaryExpr, accessChain, statement
+            });
+        }
     });
     return assignments;
 }
@@ -212,17 +216,6 @@ function getDeleteOperations(state: TransformState, statements: ts.Statement[]) 
         });
     });
     return deletes;
-}
-
-// Throw an error if multiple assignments cannot both be performed
-function checkConflictingAssignments(assignments: Assignment[]) {
-    assignments.forEach(a => {
-        assignments.forEach(b => {
-            if (a != b && isSubPath(a.accessChain, b.accessChain)) {
-                throw new Error('Conflicting assignments! ' + a.binaryExpr.getFullText() + " and " + b.binaryExpr.getFullText() ) 
-            }
-        })
-    })
 }
 
 function buildObjTree(mutations: Mutation[]): ObjTreeNode {
@@ -299,6 +292,12 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
         let exprValue: ts.Expression | null = null;
         if (objTree.mutation?.type === 'assignment') {
             exprValue = objTree.mutation.value;
+        }
+        else if (objTree.mutation?.type === 'stringConcat') {
+            exprValue = ts.factory.createAdd(
+                createChainedPropertyExpr(ctx, objTree.path),
+                objTree.mutation.value
+            );
         }
         else if (objTree.mutation?.type === 'arrayOp') {
             if (objTree.mutation.funcName === 'push') {

@@ -1,9 +1,14 @@
 import { redcr } from "..";
 
 interface StringState {
-    str: string;
-};
+    str: string
+}
 type OptionalStringState = Partial<StringState>;
+
+interface TwoNumberState {
+    first: number,
+    second: number
+}
 
 test('Simple assignment', () => {
     const reducer = redcr((state: StringState) => {
@@ -285,4 +290,18 @@ test('Reducer is an anonymous function', () => {
 
     expect(newState).toEqual({str: 'new'});
     expect(oldState).toEqual({});
+});
+
+test('String concatenation operator +=', () => {
+    const reducer = redcr(function(state: StringState) {
+        state.str += '222';
+    });
+
+    const oldState: StringState = {
+        str: '111'
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: '111222'});
+    expect(oldState).toEqual({str: '111'});
 });
