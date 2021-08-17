@@ -115,8 +115,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
 }
 
 function createStatementsForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath): ts.Statement[] {
-    const statements = codePath.statements;
-    //resolveAliases(codePath.statements);
+    const statements = removeLocalVariables(state, codePath.statements);
 
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
@@ -445,4 +444,45 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             )
         );
     }
+}
+
+// Process statements in sequence, work out the current state of the stack, and erase local variables
+function removeLocalVariables(state: TransformState, statements: ts.Statement[]): ts.Statement[] {
+    const stack: Record<string, ts.Expression> = {};
+    const newStatements: ts.Statement[] = [];
+    statements.forEach(statement => {
+        if (ts.isVariableStatement(statement)) {
+            statement.declarationList.declarations.forEach(decl => {
+                if (ts.isIdentifier(decl.name)) {
+                    stack[decl.name.text] = decl.initializer ?? ts.factory.createIdentifier('undefined');
+                }
+                else {
+                    throw Error("Destructuring not supported yet " + strKind(decl.name));
+                }
+            });
+        }
+        else if (isAssignment(statement) && ts.isIdentifier(statement.expression.left)) {
+            if (ts.isIdentifier(statement.expression.left)) {
+                stack[statement.expression.left.text] = statement.expression.right;
+            }
+            else {
+                throw Error("Destructuring not supported yet " + strKind(statement.expression.left));
+            }
+        }
+        else {
+            const visitor = (node: ts.Node): ts.Node => {
+                if (ts.isPropertyAccessExpression(node)) {
+                    return node;
+                }
+                if (ts.isIdentifier(node)) {
+                    const val = stack[node.text];
+                    if (!val) return node; // Must be a free variable
+                    return val;
+                }
+                return ts.visitEachChild(node, visitor, state.ctx);
+            }
+            newStatements.push(ts.visitEachChild(statement, visitor, state.ctx));
+        }
+    });
+    return newStatements;
 }

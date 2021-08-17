@@ -342,3 +342,46 @@ test('Array operation on array element', () => {
     expect(newState).toEqual({arr: [['a', 'b'], ['c', 'd']]});
     expect(oldState).toEqual({arr: [['a', 'b'], ['c']]});
 });
+
+test('Use local variable in assignment', () => {
+    const reducer = redcr((state: StringState) => {
+        const tmp = 'new';
+        state.str = tmp;
+    });
+
+    const oldState: StringState = {
+        str: 'old'
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'new' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Reassign local variable in assignments', () => {
+    const reducer = redcr((state: TwoNumberState) => {
+        let tmp = 33;
+        state.first = tmp;
+        tmp = 44;
+        state.second = tmp;
+    });
+
+    const oldState: TwoNumberState = {
+        first: 88, second: 99
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ first: 33, second: 44 });
+    expect(oldState).toEqual({ first: 88, second: 99 });
+});
+
+test('Use free variable in assignment', () => {
+    const someVar = 'new';
+    const reducer = redcr((state: StringState) => state.str = someVar);
+
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'new' });
+    expect(oldState).toEqual({ str: 'old' });
+});
