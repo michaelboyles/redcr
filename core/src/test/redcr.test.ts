@@ -9,6 +9,12 @@ interface TwoNumberState {
     first: number,
     second: number
 }
+interface NumberArrayState {
+    arr: number[]
+}
+interface StringArrayState {
+    arr: string[]
+}
 
 test('Simple assignment', () => {
     const reducer = redcr((state: StringState) => {
@@ -67,14 +73,11 @@ test('Array push', () => {
 });
 
 test('Array pop', () => {
-    interface State {
-        arr: number[]
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: NumberArrayState) => {
         state.arr.pop();
     });
 
-    const oldState: State = {arr: [0, 1, 2]};
+    const oldState: NumberArrayState = {arr: [0, 1, 2]};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({arr: [0, 1]});
@@ -82,14 +85,11 @@ test('Array pop', () => {
 });
 
 test('Array shift', () => {
-    interface State {
-        arr: number[]
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: NumberArrayState) => {
         state.arr.shift();
     });
 
-    const oldState: State = {arr: [0, 1, 2]};
+    const oldState: NumberArrayState = {arr: [0, 1, 2]};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({arr: [1, 2]});
@@ -97,14 +97,11 @@ test('Array shift', () => {
 });
 
 test('Array unshift', () => {
-    interface State {
-        arr: number[]
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: NumberArrayState) => {
         state.arr.unshift(0, 1);
     });
 
-    const oldState: State = {arr: [2, 3]};
+    const oldState: NumberArrayState = {arr: [2, 3]};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({arr: [0, 1, 2, 3]});
@@ -147,12 +144,9 @@ test('Bracket notation property access in middle of chain', () => {
 });
 
 test('Assign to arbitary array index', () => {
-    interface State {
-        arr: number[];
-    }
-    const reducer = redcr((state: State) => state.arr[1] = 999);
+    const reducer = redcr((state: NumberArrayState) => state.arr[1] = 999);
 
-    const oldState: State = {arr: [0, 1, 2]};
+    const oldState: NumberArrayState = {arr: [0, 1, 2]};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({arr: [0, 999, 2]});
@@ -160,15 +154,12 @@ test('Assign to arbitary array index', () => {
 });
 
 test('Assign to multiple array indices', () => {
-    interface State {
-        arr: number[];
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: NumberArrayState) => {
         state.arr[1] = 888;
         state.arr[6] = 999;
     });
 
-    const oldState: State = {arr: [0, 1, 2]};
+    const oldState: NumberArrayState = {arr: [0, 1, 2]};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({arr: [0, 888, 2, , , , 999]});
@@ -293,7 +284,7 @@ test('Reducer is an anonymous function', () => {
 });
 
 test('String concatenation operator +=', () => {
-    const reducer = redcr(function(state: StringState) {
+    const reducer = redcr((state: StringState) => {
         state.str += '222';
     });
 
@@ -304,4 +295,50 @@ test('String concatenation operator +=', () => {
 
     expect(newState).toEqual({str: '111222'});
     expect(oldState).toEqual({str: '111'});
+});
+
+test('String concatenation on array element', () => {
+    const reducer = redcr((state: StringArrayState) => {
+        state.arr[1] += '222';
+    });
+
+    const oldState: StringArrayState = {
+        arr: ['a', 'b', 'c']
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: ['a', 'b222', 'c']});
+    expect(oldState).toEqual({arr: ['a', 'b', 'c']});
+});
+
+test('Increment number array element', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr[1] += 50;
+    });
+
+    const oldState: NumberArrayState = {
+        arr: [1, 2, 3]
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: [1, 52, 3]});
+    expect(oldState).toEqual({arr: [1, 2, 3]});
+});
+
+test('Array operation on array element', () => {
+    interface State {
+        arr: string[][];
+    }
+
+    const reducer = redcr((state: State) => {
+        state.arr[1].push('d');
+    });
+
+    const oldState: State = {
+        arr: [['a', 'b'], ['c']]
+    };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: [['a', 'b'], ['c', 'd']]});
+    expect(oldState).toEqual({arr: [['a', 'b'], ['c']]});
 });

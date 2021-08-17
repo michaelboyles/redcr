@@ -115,7 +115,9 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
 }
 
 function createStatementsForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath): ts.Statement[] {
-    const { statements } = codePath;
+    const statements = codePath.statements;
+    //resolveAliases(codePath.statements);
+
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
     const deleteOps = getDeleteOperations(state, statements);
@@ -264,13 +266,7 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                             )
                         ]),
                         ctx.factory.createObjectLiteralExpression(
-                            objTree.children.map(child => {
-                                if (child.mutation?.type !== 'assignment') throw Error();
-                                return ctx.factory.createPropertyAssignment(
-                                    getPropertyName(ctx, child.name),
-                                    child.mutation.value
-                                )
-                            })
+                            objTree.children.map(child => convertObjTree(state, child))
                         )
                     ]
                 )
