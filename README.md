@@ -64,12 +64,15 @@ Then in your `tsconfig.json` add the transformation:
 
 ## Currently supported operations
 
- - Assignment
-    - Simple property e.g. `state.foo.bar = 123;`
-    - Bracket syntax e.g. `state['foo'].bar = 123;`
-    - Array index e.g. `state.arr[3] = 123;`
- - These array operations
-    - push e.g. `state.arr.push(1, 2, 3);`
-    - pop e.g. `state.arr.pop();`
-    - shift e.g. `state.arr.shift();`
-    - unshift e.g. `state.arr.unshift(1, 2);`
+| Type                  | Example                              |
+|-----------------------|--------------------------------------|
+| Assignment            | `foo.bar = 123`                      |
+| Bracket syntax        | `foo['bar'] = 123`                   |
+| String concatenation  | `foo.bar += 'hello'`                 |
+| Array access by index | `foo.arr[0] = 123`                   |
+| Array.push            | `foo.arr.push(123)`                  |
+| Array.pop             | `foo.arr.pop()`                      |
+| Array.shift           | `foo.arr.shift()`                    |
+| Array.unshift         | `foo.arr.unshift(123)`               |
+| Conditional mutation  | ``` if (condition) foo.bar = 123 ``` |
+| Local variables       | ``` let tmp = 3; foo.bar = tmp; ```  |
