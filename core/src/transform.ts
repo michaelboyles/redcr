@@ -457,23 +457,49 @@ function removeLocalVariables(state: TransformState, statements: ts.Statement[])
                     stack[decl.name.text] = decl.initializer ?? ts.factory.createIdentifier('undefined');
                 }
                 else {
-                    throw Error("Destructuring not supported yet " + strKind(decl.name));
+                    function parseDestructures(name: ts.BindingName, expr: ts.Expression) {
+                        if (ts.isObjectBindingPattern(name)) {
+                            name.elements.forEach(elem => { 
+                                if (elem.propertyName) {
+                                    if (ts.isMemberName(elem.propertyName)) {
+                                        parseDestructures(elem.name, state.ctx.factory.createPropertyAccessExpression(expr, elem.propertyName))
+                                    }
+                                    else {
+                                        // TODO destruct e.g. const { ['foo']: { bar } }
+                                        throw new Error("Unsupported 111");
+                                    }
+                                }
+                                else {
+                                    if (ts.isIdentifier(elem.name)) {
+                                        parseDestructures(elem.name, state.ctx.factory.createPropertyAccessExpression(expr, elem.name));
+                                    }
+                                    else {
+                                        // TODO
+                                        throw Error("Not sure if this is possible? 222");
+                                    }
+                                }
+                            })
+                        }
+                        else if (ts.isIdentifier(name)) {
+                            stack[name.text] = expr;
+                        }
+                    }
+                    if (!decl.initializer) {
+                        throw Error("Destructure without initializer?");
+                    }
+                    parseDestructures(decl.name, decl.initializer);
                 }
             });
         }
         else if (isAssignment(statement) && ts.isIdentifier(statement.expression.left)) {
-            if (ts.isIdentifier(statement.expression.left)) {
-                stack[statement.expression.left.text] = statement.expression.right;
-            }
-            else {
-                throw Error("Destructuring not supported yet " + strKind(statement.expression.left));
-            }
+            stack[statement.expression.left.text] = statement.expression.right;
         }
         else {
             const visitor = (node: ts.Node): ts.Node => {
-                if (ts.isPropertyAccessExpression(node)) {
-                    return node;
-                }
+                // TODO 
+                // if (ts.isPropertyAccessExpression(node)) {
+                //     return node;
+                // }
                 if (ts.isIdentifier(node)) {
                     const val = stack[node.text];
                     if (!val) return node; // Must be a free variable

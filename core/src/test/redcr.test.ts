@@ -15,6 +15,14 @@ interface NumberArrayState {
 interface StringArrayState {
     arr: string[]
 }
+interface NestedObjectState {
+    child: { str: string }
+}
+interface DoubleNestedObjectState {
+    one: {
+        two: { str: string }
+    }
+}
 
 test('Simple assignment', () => {
     const reducer = redcr((state: StringState) => {
@@ -41,16 +49,11 @@ test('Non-null assert assignment', () => {
 });
 
 test('Nested assignment', () => {
-    interface State {
-        child: {
-            str: string;   
-        }
-    }
-    const reducer = redcr((state: State) => {
+    const reducer = redcr((state: NestedObjectState) => {
         state.child.str = 'new';
     });
 
-    const oldState: State = {child: {str: 'old' }};
+    const oldState: NestedObjectState = {child: {str: 'old' }};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({child: {str: 'new'}});
@@ -129,14 +132,9 @@ test('Bracket notation property access', () => {
 });
 
 test('Bracket notation property access in middle of chain', () => {
-    interface State {
-        child: {
-            str: string;
-        }
-    }
-    const reducer = redcr((state: State) => state['child'].str = 'new');
+    const reducer = redcr((state: NestedObjectState) => state['child'].str = 'new');
 
-    const oldState: State = {child: {str: 'old'}};
+    const oldState: NestedObjectState = {child: {str: 'old'}};
     const newState = reducer(oldState);
 
     expect(newState).toEqual({child: {str: 'new'}});
@@ -384,4 +382,56 @@ test('Use free variable in assignment', () => {
 
     expect(newState).toEqual({ str: 'new' });
     expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Destructured assignment', () => {
+    const reducer = redcr((state: NestedObjectState) => {
+        const { child } = state;
+        child.str = 'new';
+    });
+
+    const oldState: NestedObjectState = { child: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ child: { str: 'new' } });
+    expect(oldState).toEqual({ child: { str: 'old' } });
+});
+
+test('Destructured assignment with different identifier', () => {
+    const reducer = redcr((state: NestedObjectState) => {
+        const { child: foo } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: NestedObjectState = { child: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ child: { str: 'new' } });
+    expect(oldState).toEqual({ child: { str: 'old' } });
+});
+
+test('Two levels of destructuring with assignment', () => {
+    const reducer = redcr((state: DoubleNestedObjectState) => {
+        const { one: { two } } = state;
+        two.str = 'new';
+    });
+
+    const oldState: DoubleNestedObjectState = { one: { two: { str: 'old' } } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ one: { two: { str: 'new' } } });
+    expect(oldState).toEqual({ one: { two: { str: 'old' } } });
+});
+
+test('Two levels of destructuring with assignment and alternate identifier', () => {
+    const reducer = redcr((state: DoubleNestedObjectState) => {
+        const { one: { two: foo } } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: DoubleNestedObjectState = { one: { two: { str: 'old' } } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ one: { two: { str: 'new' } } });
+    expect(oldState).toEqual({ one: { two: { str: 'old' } } });
 });
