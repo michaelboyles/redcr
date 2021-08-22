@@ -2,6 +2,7 @@ import * as ts from 'typescript';
 import { isPropAccessEqual, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
 import { assertExhaustive, isAssignment, isExpression, strKind, TransformState } from './util';
 import { CodePath, parseCodePaths } from './code-paths';
+import { removeLocalVariables } from './remove-locals';
 
 interface BaseMutation {
     statement: ts.Statement;
@@ -444,71 +445,4 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             )
         );
     }
-}
-
-// Process statements in sequence, work out the current state of the stack, and erase local variables
-function removeLocalVariables(state: TransformState, statements: ts.Statement[]): ts.Statement[] {
-    const stack: Record<string, ts.Expression> = {};
-    const newStatements: ts.Statement[] = [];
-    statements.forEach(statement => {
-        if (ts.isVariableStatement(statement)) {
-            statement.declarationList.declarations.forEach(decl => {
-                if (ts.isIdentifier(decl.name)) {
-                    stack[decl.name.text] = decl.initializer ?? ts.factory.createIdentifier('undefined');
-                }
-                else {
-                    function parseDestructures(name: ts.BindingName, expr: ts.Expression) {
-                        if (ts.isObjectBindingPattern(name)) {
-                            name.elements.forEach(elem => { 
-                                if (elem.propertyName) {
-                                    if (ts.isMemberName(elem.propertyName)) {
-                                        parseDestructures(elem.name, state.ctx.factory.createPropertyAccessExpression(expr, elem.propertyName))
-                                    }
-                                    else {
-                                        // TODO destruct e.g. const { ['foo']: { bar } }
-                                        throw new Error("Unsupported 111");
-                                    }
-                                }
-                                else {
-                                    if (ts.isIdentifier(elem.name)) {
-                                        parseDestructures(elem.name, state.ctx.factory.createPropertyAccessExpression(expr, elem.name));
-                                    }
-                                    else {
-                                        // TODO
-                                        throw Error("Not sure if this is possible? 222");
-                                    }
-                                }
-                            })
-                        }
-                        else if (ts.isIdentifier(name)) {
-                            stack[name.text] = expr;
-                        }
-                    }
-                    if (!decl.initializer) {
-                        throw Error("Destructure without initializer?");
-                    }
-                    parseDestructures(decl.name, decl.initializer);
-                }
-            });
-        }
-        else if (isAssignment(statement) && ts.isIdentifier(statement.expression.left)) {
-            stack[statement.expression.left.text] = statement.expression.right;
-        }
-        else {
-            const visitor = (node: ts.Node): ts.Node => {
-                // TODO 
-                // if (ts.isPropertyAccessExpression(node)) {
-                //     return node;
-                // }
-                if (ts.isIdentifier(node)) {
-                    const val = stack[node.text];
-                    if (!val) return node; // Must be a free variable
-                    return val;
-                }
-                return ts.visitEachChild(node, visitor, state.ctx);
-            }
-            newStatements.push(ts.visitEachChild(statement, visitor, state.ctx));
-        }
-    });
-    return newStatements;
 }
