@@ -15,7 +15,7 @@ module.exports = {
         rules: [
             {
                 test: /\.tsx?$/,
-                exclude: /node_modules/,
+                exclude: [/node_modules/, /\.sample\.ts$/],
                 use: [{
                     loader: 'ts-loader',
                     options: {
@@ -23,6 +23,10 @@ module.exports = {
                         configFile: 'tsconfig.json'
                     }
                 }]
+            },
+            {
+                test: /\.sample\.ts$/,
+                type: 'asset/source'
             }
         ]
     },

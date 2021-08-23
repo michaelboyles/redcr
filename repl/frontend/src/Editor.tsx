@@ -1,23 +1,14 @@
 import * as monaco from 'monaco-editor';
 import * as React from "react";
 import { DiffEditor, Monaco } from "@monaco-editor/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { debounce } from "lodash";
+import { SampleSelect } from './SampleSelect';
 
-const apiUrl = 'https://1p4eospzg9.execute-api.eu-west-2.amazonaws.com/default';
-
-const defaultLeft = `import { redcr } from 'redcr';
-
-interface StringState {
-    str: string;
-};
-
-const reducer = redcr((state: StringState) => {
-    state.str = 'new';
-});
-`;
+const apiUrl = 'https://abgal4ldi5.execute-api.eu-west-2.amazonaws.com/default';
 
 export const Editor = () => {
+    const [leftText, setLeftText] = useState('');
     const [rightText, setRightText] = useState('');
     const [isFetching, setIsFetching] = useState(false);
     const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>();
@@ -43,10 +34,6 @@ export const Editor = () => {
         debounce(fetchCodeNow, 500), [fetchCodeNow]
     );
 
-    useEffect(() => {
-        fetchCodeNow(defaultLeft);
-    }, []);
-
     const formatCode = () => {
         if (editor) {
             editor.getOriginalEditor().getAction('editor.action.formatDocument').run();
@@ -55,12 +42,13 @@ export const Editor = () => {
 
     return (
         <>
+            <SampleSelect onChange={sample => { setLeftText(sample.source); fetchCodeNow(sample.source); }} />
             <button onClick={formatCode}>Format</button>
             <DiffEditor
                 height="90vh"
                 originalLanguage="typescript"
                 modifiedLanguage="javascript"
-                original={defaultLeft}
+                original={leftText}
                 modified={rightText}
                 options={{
                     originalEditable: true,
