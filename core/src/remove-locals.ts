@@ -1,5 +1,5 @@
 import * as ts from 'typescript';
-import { isAssignment, TransformState } from './util';
+import { assertExhaustive, isAssignment, TransformState } from './util';
 
 // ================================================================================================
 // This file exports a function used for removing local variables from a given set of statements.
@@ -58,17 +58,11 @@ function handleDestructuring(state: TransformState, name: ts.BindingName, expr: 
     if (ts.isObjectBindingPattern(name)) {
         name.elements.forEach(elem => {
             if (elem.propertyName) {
-                if (ts.isMemberName(elem.propertyName)) {
-                    handleDestructuring(
-                        state, elem.name,
-                        state.ctx.factory.createPropertyAccessExpression(expr, elem.propertyName),
-                        stack
-                    );
-                }
-                else {
-                    // TODO destruct e.g. const { ['foo']: { bar } }
-                    throw new Error("Unsupported 111");
-                }
+                handleDestructuring(
+                    state, elem.name,
+                    propNameToAccessExpr(state, expr, elem.propertyName),
+                    stack
+                );
             }
             else {
                 if (ts.isIdentifier(elem.name)) {
@@ -88,4 +82,17 @@ function handleDestructuring(state: TransformState, name: ts.BindingName, expr: 
     else if (ts.isIdentifier(name)) {
         stack[name.text] = expr;
     }
+}
+
+function propNameToAccessExpr(state: TransformState, expr: ts.Expression, propName: ts.PropertyName): ts.Expression {
+    if (ts.isMemberName(propName)) {
+        return state.ctx.factory.createPropertyAccessExpression(expr, propName);
+    }
+    else if (ts.isStringLiteral(propName) || ts.isNumericLiteral(propName)) {
+        return state.ctx.factory.createElementAccessExpression(expr, propName);
+    }
+    else if (ts.isComputedPropertyName(propName)) {
+        return state.ctx.factory.createElementAccessExpression(expr, propName.expression);
+    }
+    return assertExhaustive(propName);
 }

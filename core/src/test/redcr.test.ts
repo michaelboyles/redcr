@@ -435,3 +435,46 @@ test('Two levels of destructuring with assignment and alternate identifier', () 
     expect(newState).toEqual({ one: { two: { str: 'new' } } });
     expect(oldState).toEqual({ one: { two: { str: 'old' } } });
 });
+
+test('Destructured assignment with string literal', () => {
+    const reducer = redcr((state: NestedObjectState) => {
+        const { 'child': foo } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: NestedObjectState = { child: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ child: { str: 'new' } });
+    expect(oldState).toEqual({ child: { str: 'old' } });
+});
+
+test('Destructured assignment with number literal', () => {
+    interface State {
+        123: { str: string }
+    }
+
+    const reducer = redcr((state: State) => {
+        const { 123: foo } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: State = { 123: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ 123: { str: 'new' } });
+    expect(oldState).toEqual({ 123: { str: 'old' } });
+});
+
+test('Destructured assignment with computed property', () => {
+    const reducer = redcr((state: NestedObjectState) => {
+        const { ['child']: foo } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: NestedObjectState = { child: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ child: { str: 'new' } });
+    expect(oldState).toEqual({ child: { str: 'old' } });
+});
