@@ -81,7 +81,7 @@ export default function(program: ts.Program, pluginOptions: object) {
                                         [ctx.factory.createExpressionStatement(reducer.body)]
                                     );
                                 }
-                                throw new Error("Unknown arrow function body type");
+                                return assertExhaustive(reducer.body);
                             }
                         }    
                     }
