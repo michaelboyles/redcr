@@ -478,3 +478,17 @@ test('Destructured assignment with computed property', () => {
     expect(newState).toEqual({ child: { str: 'new' } });
     expect(oldState).toEqual({ child: { str: 'old' } });
 });
+
+test('Destructured assignment with computed property referencing variable', () => {
+    const reducer = redcr((state: NestedObjectState) => {
+        const field = 'child';
+        const { [field]: foo } = state;
+        foo.str = 'new';
+    });
+
+    const oldState: NestedObjectState = { child: { str: 'old' } };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ child: { str: 'new' } });
+    expect(oldState).toEqual({ child: { str: 'old' } });
+});

@@ -60,7 +60,7 @@ function handleDestructuring(state: TransformState, name: ts.BindingName, expr: 
             if (elem.propertyName) {
                 handleDestructuring(
                     state, elem.name,
-                    propNameToAccessExpr(state, expr, elem.propertyName),
+                    propNameToAccessExpr(state, expr, elem.propertyName, stack),
                     stack
                 );
             }
@@ -84,7 +84,7 @@ function handleDestructuring(state: TransformState, name: ts.BindingName, expr: 
     }
 }
 
-function propNameToAccessExpr(state: TransformState, expr: ts.Expression, propName: ts.PropertyName): ts.Expression {
+function propNameToAccessExpr(state: TransformState, expr: ts.Expression, propName: ts.PropertyName, stack: Stack): ts.Expression {
     if (ts.isMemberName(propName)) {
         return state.ctx.factory.createPropertyAccessExpression(expr, propName);
     }
@@ -92,7 +92,11 @@ function propNameToAccessExpr(state: TransformState, expr: ts.Expression, propNa
         return state.ctx.factory.createElementAccessExpression(expr, propName);
     }
     else if (ts.isComputedPropertyName(propName)) {
-        return state.ctx.factory.createElementAccessExpression(expr, propName.expression);
+        let accessExpr = propName.expression;
+        if (ts.isIdentifier(propName.expression) && propName.expression.text in stack) {
+            accessExpr = stack[propName.expression.text];
+        }
+        return state.ctx.factory.createElementAccessExpression(expr, accessExpr);
     }
     return assertExhaustive(propName);
 }
