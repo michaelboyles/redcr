@@ -356,6 +356,20 @@ test('Use local variable in assignment', () => {
     expect(oldState).toEqual({ str: 'old' });
 });
 
+test('Initially undefined local variable in assignment', () => {
+    const reducer = redcr((state: StringState) => {
+        let tmp;
+        tmp = 'new';
+        state.str = tmp;
+    });
+
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'new' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
 test('Reassign local variable in assignments', () => {
     const reducer = redcr((state: TwoNumberState) => {
         let tmp = 33;
