@@ -121,6 +121,7 @@ Resources:
             ApiKeyRequired: false
             RequestParameters:
                 "method.request.querystring.code": true
+                "method.request.querystring.target": true
             MethodResponses: 
               - ResponseModels: 
                     "application/json": Empty
