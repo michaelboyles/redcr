@@ -74,20 +74,3 @@ export function parseAccessChain(state: TransformState, initExpr: ts.Expression)
     }
     return accessChain;
 }
-
-// Return true if the 1st argument is either the same or a sub-path of the 2nd, else false
-export function isSubPath(a: PropAccess[], b: PropAccess[]): boolean {
-    if (a.length > b.length) return false;
-    for (let i = 0; i < a.length; ++i) {
-        const aItem = a[i];
-        const bItem = b[i];
-        if (aItem.type !== bItem.type) return false;
-        if (aItem.type === 'member' && bItem.type === 'member') {
-            if (aItem.member.text !== bItem.member.text) return false;
-        }
-        if (aItem.type === 'dynamic' && bItem.type === 'dynamic') {
-            if (aItem.expr.getText() !== bItem.expr.getText()) return false;
-        }
-    }
-    return true;
-}
