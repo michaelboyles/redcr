@@ -1,7 +1,9 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { Editor } from './Editor';
+import { Repl } from './Repl';
+
+import './style.scss';
 
 const container = document.getElementById('root');
 
-ReactDOM.render(<Editor />, container);
+ReactDOM.render(<Repl />, container);

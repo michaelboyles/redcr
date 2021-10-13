@@ -2,7 +2,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
     name: 'Redcr REPL',
-    mode: 'development',
+    mode: 'production',
     devtool: false,
     entry: './src/index.tsx',
     output: {
@@ -23,6 +23,10 @@ module.exports = {
                         configFile: 'tsconfig.json'
                     }
                 }]
+            },
+            {
+                test: /\.s?css$/,
+                use: ['style-loader', 'css-loader', 'sass-loader']
             },
             {
                 test: /\.sample\.ts$/,
