@@ -61,7 +61,7 @@ export const Editor = () => {
                 onMount={editor => {
                     setEditor(editor);
                     editor.getOriginalEditor().onDidChangeModelContent(
-                        () => fetchCode(editor.getOriginalEditor().getValue())
+                        () => fetchCode(target, editor.getOriginalEditor().getValue())
                     )
                 }}
             />
