@@ -5,6 +5,8 @@
 Redcr (pronounced *redka* [like the British town](https://en.wikipedia.org/wiki/Redcar)) is an experimental
 alternative to [Immer](https://github.com/immerjs/immer).
 
+<p align="center">👉 &nbsp;<a href="https://michaelboyles.github.io/redcr/">Try the online REPL<a> 👈</p>
+
 Immer works by create a "draft copy" of the state you wish to change and mututating the draft copy. This has a performance impact
 [approximately 2-6 times worse](https://immerjs.github.io/immer/performance) than a handwritten reducer. Handwritten reducers
 are unwieldy, that's why Immer exists in the first place.
