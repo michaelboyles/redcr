@@ -1,7 +1,6 @@
 import * as ts from 'typescript';
 import { isPropAccessEqual, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
 import { assertExhaustive, isAssignment, isExpression, strKind, TransformState } from './util';
-import { CodePath, parseCodePaths } from './code-paths';
 import { removeLocalVariables } from './remove-locals';
 
 interface BaseMutation {
@@ -87,7 +86,7 @@ export default function(program: ts.Program, pluginOptions: object) {
                     }
                     return ts.visitEachChild(node, visitor, ctx);
                 }
-                catch (err) {
+                catch (err: any) {
                     if (err.message) {
                         err.message = `${err.message}\r\nIn file ${sourceFile.fileName}\r\nAt node ${node.getText()}`;
                     }
@@ -102,21 +101,62 @@ export default function(program: ts.Program, pluginOptions: object) {
 
 function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[], statements: ts.Statement[]) {
     const { ctx } = state;
-    const codePaths: CodePath[] = parseCodePaths(state, statements);
+
+    if (!ts.isIdentifier(params[0].name)) {
+        throw new Error("Can't use destructuring here");
+    }
+
     return ctx.factory.createArrowFunction(
         [],
         [],
         params,
         undefined,
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-        ctx.factory.createBlock(
-            codePaths.reduce((statements: ts.Statement[], path) => statements.concat(createStatementsForPath(state, params[0], path)), [])
-        )
+        ctx.factory.createBlock([
+            ...createStatementsForAllBranches(state, params[0].name, statements),
+            state.ctx.factory.createReturnStatement(params[0].name)
+        ])
     );
 }
 
-function createStatementsForPath(state: TransformState, target: ts.ParameterDeclaration, codePath: CodePath): ts.Statement[] {
-    const statements = removeLocalVariables(state, codePath.statements);
+function createStatementsForAllBranches(state: TransformState, stateParam: ts.Identifier, inputStatements: ts.Statement[]): ts.Statement[] {
+    const newStatements: ts.Statement[] = [];
+    // Iterate through all statements until we hit a branch, then parse all the queued items in one shot
+    var queue: ts.Statement[] = [];
+    inputStatements.forEach(statement => {
+        if (ts.isIfStatement(statement)) {
+            createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
+            queue = [];
+
+            const thenStatements = getStatementsFromPossibleBlock(statement.thenStatement);
+            const elseStatements = (!statement.elseStatement) ? [] : getStatementsFromPossibleBlock(statement.elseStatement);
+            newStatements.push(
+                state.ctx.factory.createIfStatement(
+                    statement.expression,
+                    state.ctx.factory.createBlock(createStatementsForAllBranches(state, stateParam, thenStatements)),
+                    elseStatements.length == 0 ? undefined : state.ctx.factory.createBlock(createStatementsForAllBranches(state, stateParam, elseStatements))
+                )
+            );
+        }
+        else {
+            queue.push(statement);
+        }
+    });
+    if (queue.length > 0) {
+        createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
+    }
+    return newStatements;
+}
+
+function getStatementsFromPossibleBlock(statement: ts.Statement): ts.Statement[] {
+    if (ts.isBlock(statement)) {
+        return statement.statements.map(x => x)
+    }
+    return [statement];
+}
+
+function createStatementsForBranch(state: TransformState, stateParam: ts.Identifier, inputStatements: ts.Statement[]): ts.Statement[] {
+    const statements = removeLocalVariables(state, inputStatements);
 
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
@@ -125,37 +165,24 @@ function createStatementsForPath(state: TransformState, target: ts.ParameterDecl
     const allMutations = [...assignments, ...arrayOps, ...deleteOps];
     const objTree = buildObjTree(allMutations);
     //printObjTree(objTree);
-    const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === target.name.getText());
-
-    if (!targetNode) {
-        // The target of the mutation wasn't changed for this path
-        if (!ts.isIdentifier(target.name)) {
-            throw Error("Can't destructure here")
-        }
-        return [
-            ...statements,
-            state.ctx.factory.createReturnStatement(target.name)
-        ]
-    }
+    const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === stateParam.getText());
 
     const nonMutationStatements = statements.filter(statement =>
         !allMutations.map(mutation => mutation.statement).includes(statement)
     );
-    const statementsWithReturn = [
+    
+    if (!targetNode) {
+        return nonMutationStatements;
+    }
+    return [
         ...nonMutationStatements,
-        state.ctx.factory.createReturnStatement(
-            convertObjTree(state, targetNode).initializer
+        state.ctx.factory.createExpressionStatement(
+            state.ctx.factory.createAssignment(
+                stateParam,
+                convertObjTree(state, targetNode).initializer
+            )
         )
     ];
-    if (codePath.condition) {
-        return [
-            state.ctx.factory.createIfStatement(
-                codePath.condition,
-                state.ctx.factory.createBlock(statementsWithReturn)
-            )
-        ];
-    }
-    return statementsWithReturn;
 }
 
 // Get all the binary expressions which represent assignments within the given statements

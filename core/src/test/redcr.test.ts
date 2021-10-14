@@ -239,6 +239,18 @@ test('Conditional assignment is false', () => {
     expect(oldState).toEqual({});
 });
 
+test('Conditional assignment without braces', () => {
+    const reducer = redcr((state: StringState, value: number) => {
+        if (value < 1000) state.str = 'new';
+    });
+
+    const oldState: StringState = {str: 'old'};
+    const newState = reducer(oldState, 500);
+
+    expect(newState).toEqual({str: 'new'});
+    expect(oldState).toEqual({str: 'old'});
+});
+
 test('Else clause assignment', () => {
     const reducer = redcr((state: OptionalStringState, value: number) => {
         if (value < 1000) {
@@ -268,6 +280,46 @@ test('Assignment using local variable', () => {
     expect(newState).toEqual({str: 'local variable'});
     expect(oldState).toEqual({});
 });
+
+test('Nested if statements using assignment', () => {
+    const foo = false;
+    const bar = false;
+
+    const reducer = redcr((state: OptionalStringState) => {
+        if (foo) {
+            if (bar) {
+                state.str = 'both conditions were true'
+            }
+        }
+        else {
+            state.str = 'condition was false'
+        }
+    });
+
+    const oldState: OptionalStringState = {};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({str: 'condition was false'});
+    expect(oldState).toEqual({});
+});
+
+test('Assignment inside and outside of if', () => {
+    const condition = true;
+
+    const reducer = redcr((state: TwoNumberState) => {
+        state.first = 333;
+        if (condition) {
+            state.second = 444;
+        }
+    });
+
+    const oldState: TwoNumberState = {first: 111, second: 222};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({first: 333, second: 444});
+    expect(oldState).toEqual({first: 111, second: 222});
+});
+
 
 test('Reducer is an anonymous function', () => {
     const reducer = redcr(function(state: OptionalStringState) {
