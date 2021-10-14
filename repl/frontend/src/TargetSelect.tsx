@@ -13,8 +13,11 @@ export interface Props {
 
 export const TargetSelect = (props: Props) => {
     return (
-        <select onChange={e => props.onChange(e.target.value as Target)} defaultValue={props.initialTarget}>
-            { targets.map(target => <option key={target}>{target}</option>)}
-        </select>
+        <>
+            <label>Target:</label>
+            <select onChange={e => props.onChange(e.target.value as Target)} defaultValue={props.initialTarget}>
+                { targets.map(target => <option key={target}>{target}</option>)}
+            </select>
+        </>
     )
 }

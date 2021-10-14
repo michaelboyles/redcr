@@ -1,4 +1,3 @@
-import * as monaco from 'monaco-editor';
 import * as React from "react";
 
 import Editor, { Monaco } from "@monaco-editor/react";
@@ -13,8 +12,7 @@ export const Repl = () => {
     const [target, setTarget] = useState<Target>('ES2020');
     const [leftText, setLeftText] = useState('');
     const [rightText, setRightText] = useState('');
-    const [isFetching, setIsFetching] = useState(false);
-    const [editor, setEditor] = useState<monaco.editor.IStandaloneCodeEditor | null>();
+    const [isCompiling, setIsCompiling] = useState(false);
 
     const configureMonaco = (monaco: Monaco) => {
         monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -23,57 +21,51 @@ export const Repl = () => {
     }
 
     const fetchCodeNow = useCallback(async (target: string, newSource: string) => {
-        setIsFetching(true);
+        setIsCompiling(true);
 
         const resp = await fetch(`${apiUrl}/convert?target=${target}&code=${encodeURIComponent(newSource)}`)
-        setIsFetching(false);
+        setIsCompiling(false);
         if (resp.ok) {
             const text = await resp.text();
             setRightText(text);
         }
-    }, [setIsFetching, setRightText]);
+    }, [setIsCompiling, setRightText]);
 
     const fetchCode = useCallback(
         debounce(fetchCodeNow, 500), [fetchCodeNow]
     );
 
-    const formatCode = () => {
-        if (editor) {
-            editor.getAction('editor.action.formatDocument').run();
-        }
-    };
-
     return (
-        <>
-            <TargetSelect initialTarget={target} onChange={target => { setTarget(target); fetchCodeNow(target, leftText) } } />
-            <SampleSelect onChange={sample => { setLeftText(sample.source); fetchCodeNow(target, sample.source); }} />
-            <button onClick={formatCode}>Format</button>
-            
-            <div className='editors'>
+        <div className='editors'>
+            <div className='left editor'>
+                <header>
+                    <h2>Input - TypeScript</h2>
+                    <SampleSelect onChange={sample => { setLeftText(sample.source); fetchCodeNow(target, sample.source); }} />
+                </header>
                 <Editor
                     value={leftText}
-                    height="100%"
-                    width="50%"
                     language="typescript"
                     beforeMount={configureMonaco}
                     options={{minimap: {enabled: false}}}
-                    onMount={editor => {
-                        setEditor(editor);
-                        editor.onDidChangeModelContent(
+                    onMount={
+                        editor => editor.onDidChangeModelContent(
                             () => fetchCode(target, editor.getValue())
-                        );
-                    }}
+                        )
+                    }
                 />
+            </div>
+            <div className='right editor'>
+                <header>
+                    <h2>Output - JavaScript {target}</h2>
+                    <TargetSelect initialTarget={target} onChange={target => { setTarget(target); fetchCodeNow(target, leftText) } } />
+                </header>
                 <Editor
                     value={rightText}
-                    height="100%"
-                    width="50%"
                     language="javascript"
                     options={{readOnly: true, minimap: {enabled: false}}}
                 />
+                {isCompiling ? <div className='loading'><div className='text'>Compiling...</div></div> : null}
             </div>
-        
-            <div>{isFetching ? 'Fetching...' : ''}</div>
-        </>
+        </div>
     );
 }
