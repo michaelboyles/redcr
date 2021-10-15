@@ -27,6 +27,10 @@ html, body {
         flex-grow: 1;
         overflow: hidden;
 
+        .report-issue {
+            float: right;
+        }
+
         .editor {
             display: flex;
             flex-direction: column;
