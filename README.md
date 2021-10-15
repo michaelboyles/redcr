@@ -40,7 +40,7 @@ const myReducer = (state) => {
 
 Browser support for the spread operator is not required, since TypeScript can replace it with a polyfill. 
 
-## Install
+## 💿 Install
 
 **Redcr** works by using TypeScript compiler transforms. Even though this is a [native TypeScript feature](https://github.com/microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md), it's not yet exposed publically. You need
 [**ttypescript**](https://github.com/cevek/ttypescript) which is a smaller wrapper around TypeScript which exposes that feature.
@@ -64,7 +64,7 @@ Then in your `tsconfig.json` add the transformation:
 }
 ```
 
-## Currently supported operations
+## 📙 Supported operations
 
 | Type                  | Example                              |
 |-----------------------|--------------------------------------|
@@ -78,3 +78,9 @@ Then in your `tsconfig.json` add the transformation:
 | Array.unshift         | `foo.arr.unshift(123)`               |
 | Conditional mutation  | ``` if (condition) foo.bar = 123 ``` |
 | Local variables       | ``` let tmp = 3; foo.bar = tmp; ```  |
+
+See [proposed features](https://github.com/michaelboyles/redcr/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+    
+ ## 📝 Contributing 
+
+Contributions are welcome. Bug reports and use-cases are just as valuable as PRs. All code changes must be accompanied by tests.
