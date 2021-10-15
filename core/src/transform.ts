@@ -113,7 +113,7 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
         undefined,
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
         ctx.factory.createBlock([
-            ...createStatementsForAllBranches(state, params[0].name, statements),
+            ...createStatementsForAllBranches(state, params[0].name, removeLocalVariables(state, statements)),
             state.ctx.factory.createReturnStatement(params[0].name)
         ])
     );
@@ -155,9 +155,7 @@ function getStatementsFromPossibleBlock(statement: ts.Statement): ts.Statement[]
     return [statement];
 }
 
-function createStatementsForBranch(state: TransformState, stateParam: ts.Identifier, inputStatements: ts.Statement[]): ts.Statement[] {
-    const statements = removeLocalVariables(state, inputStatements);
-
+function createStatementsForBranch(state: TransformState, stateParam: ts.Identifier, statements: ts.Statement[]): ts.Statement[] {
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
     const deleteOps = getDeleteOperations(state, statements);

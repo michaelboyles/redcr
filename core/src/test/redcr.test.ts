@@ -558,3 +558,17 @@ test('Destructured assignment with computed property referencing variable', () =
     expect(newState).toEqual({ child: { str: 'new' } });
     expect(oldState).toEqual({ child: { str: 'old' } });
 });
+
+test('Local variable used in condition', () => {
+    const reducer = redcr((state: StringState) => {
+        const condition = true;
+        if (condition) {
+            state.str = 'new';
+        }
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'new' });
+    expect(oldState).toEqual({ str: 'old' });
+});
