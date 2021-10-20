@@ -5,6 +5,9 @@ interface StringState {
 }
 type OptionalStringState = Partial<StringState>;
 
+interface NumberState {
+    num: number,
+}
 interface TwoNumberState {
     first: number,
     second: number
@@ -581,4 +584,52 @@ test('Local variable used in condition', () => {
 
     expect(newState).toEqual({ str: 'new' });
     expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Prefix increment number as expression arrow function', () => {
+    const reducer = redcr((state: NumberState) => ++state.num);
+    const oldState: NumberState = { num: 1 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ num: 2 });
+    expect(oldState).toEqual({ num: 1 });
+});
+
+test('Prefix increment number as block arrow function', () => {
+    const reducer = redcr((state: NumberState) => {
+        ++state.num
+    });
+    const oldState: NumberState = { num: 1 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ num: 2 });
+    expect(oldState).toEqual({ num: 1 });
+});
+
+
+test('Prefix decrement number', () => {
+    const reducer = redcr((state: NumberState) => --state.num);
+    const oldState: NumberState = { num: 2 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ num: 1 });
+    expect(oldState).toEqual({ num: 2 });
+});
+
+test('Postfix increment number', () => {
+    const reducer = redcr((state: NumberState) => state.num++);
+    const oldState: NumberState = { num: 1 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ num: 2 });
+    expect(oldState).toEqual({ num: 1 });
+});
+
+test('Postfix decrement number', () => {
+    const reducer = redcr((state: NumberState) => state.num--);
+    const oldState: NumberState = { num: 2 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ num: 1 });
+    expect(oldState).toEqual({ num: 2 });
 });

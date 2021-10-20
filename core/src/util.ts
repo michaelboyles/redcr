@@ -30,7 +30,9 @@ export function isExpression(node: ts.Node): node is ts.Expression {
     const expressions = [
         ts.SyntaxKind.BinaryExpression,
         ts.SyntaxKind.CallExpression,
-        ts.SyntaxKind.DeleteExpression
+        ts.SyntaxKind.DeleteExpression,
+        ts.SyntaxKind.PrefixUnaryExpression,
+        ts.SyntaxKind.PostfixUnaryExpression
     ];
     return expressions.includes(node.kind);
 }

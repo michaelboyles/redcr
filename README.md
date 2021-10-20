@@ -78,6 +78,7 @@ Then in your `tsconfig.json` add the transformation:
 | Array.unshift         | `foo.arr.unshift(123)`               |
 | Conditional mutation  | ``` if (condition) foo.bar = 123 ``` |
 | Local variables       | ``` let tmp = 3; foo.bar = tmp; ```  |
+| Increment/decrement   | ``` foo.num++; foo.bar--; ```        |
 
 See [proposed features](https://github.com/michaelboyles/redcr/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
     

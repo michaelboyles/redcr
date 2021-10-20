@@ -20,6 +20,12 @@ interface StringConcat extends BaseMutation {
     binaryExpr: ts.BinaryExpression;
 }
 
+// Prefix vs postfix doesn't matter to us
+interface UnaryOperation extends BaseMutation {
+    type: 'unary';
+    subType: 'increment' | 'decrement';
+};
+
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
 interface ArrayOperation extends BaseMutation {
     type: 'arrayOp',
@@ -31,7 +37,7 @@ interface DeleteOperation extends BaseMutation {
     type: 'delete'
 }
 
-type Mutation = Assignment | StringConcat | ArrayOperation | DeleteOperation;
+type Mutation = Assignment | StringConcat | ArrayOperation | DeleteOperation | UnaryOperation;
 
 interface ObjTreeNode {
     name: PropAccess,
@@ -159,8 +165,9 @@ function createStatementsForBranch(state: TransformState, stateParam: ts.Identif
     const assignments = getAssignmentsInStatements(state, statements);
     const arrayOps = getArrayOpsInStatements(state, statements);
     const deleteOps = getDeleteOperations(state, statements);
+    const unaryOps = getUnaryOperations(state, statements);
 
-    const allMutations = [...assignments, ...arrayOps, ...deleteOps];
+    const allMutations = [...assignments, ...arrayOps, ...deleteOps, ...unaryOps];
     const objTree = buildObjTree(allMutations);
     //printObjTree(objTree);
     const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === stateParam.getText());
@@ -243,6 +250,35 @@ function getDeleteOperations(state: TransformState, statements: ts.Statement[]) 
         });
     });
     return deletes;
+}
+
+function getUnaryOperations(state: TransformState, statements: ts.Statement[]) {
+    const unaryOps: UnaryOperation[] = [];
+    statements.forEach(statement => {
+        if (!ts.isExpressionStatement(statement)) return;
+        statement.forEachChild(child => {
+            if (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) {
+                let subType: 'increment' | 'decrement';
+                if (child.operator === ts.SyntaxKind.PlusPlusToken) {
+                    subType = 'increment';
+                }
+                else if (child.operator === ts.SyntaxKind.MinusMinusToken) {
+                    subType = 'decrement';
+                }
+                else {
+                    throw new Error('Unsupported unary operator ' + child.operator);
+                }
+
+                unaryOps.push({
+                    type: 'unary',
+                    subType,
+                    accessChain: parseAccessChain(state, child.operand),
+                    statement
+                })
+            }
+        });
+    });
+    return unaryOps;
 }
 
 function buildObjTree(mutations: Mutation[]): ObjTreeNode {
@@ -362,6 +398,20 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                         createChainedPropertyExpr(ctx, objTree.path)
                     )
                 ]);
+            }
+        }
+        else if (objTree.mutation?.type === 'unary') {
+            if (objTree.mutation.subType === 'increment') {
+                exprValue = ts.factory.createAdd(
+                    createChainedPropertyExpr(ctx, objTree.path),
+                    ctx.factory.createNumericLiteral(1)
+                );
+            }
+            else if (objTree.mutation.subType === 'decrement') {
+                exprValue = ts.factory.createSubtract(
+                    createChainedPropertyExpr(ctx, objTree.path),
+                    ctx.factory.createNumericLiteral(1)
+                );
             }
         }
 
