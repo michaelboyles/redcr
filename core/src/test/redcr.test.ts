@@ -87,6 +87,16 @@ test('Array pop', () => {
     expect(oldState).toEqual({arr: [0, 1, 2]});
 });
 
+test('Array pop as expression arrow function', () => {
+    const reducer = redcr((state: NumberArrayState) => state.arr.pop());
+
+    const oldState: NumberArrayState = {arr: [0, 1, 2]};
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({arr: [0, 1]});
+    expect(oldState).toEqual({arr: [0, 1, 2]});
+});
+
 test('Array shift', () => {
     const reducer = redcr((state: NumberArrayState) => {
         state.arr.shift();
