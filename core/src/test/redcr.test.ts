@@ -606,7 +606,6 @@ test('Prefix increment number as block arrow function', () => {
     expect(oldState).toEqual({ num: 1 });
 });
 
-
 test('Prefix decrement number', () => {
     const reducer = redcr((state: NumberState) => --state.num);
     const oldState: NumberState = { num: 2 };
@@ -632,4 +631,84 @@ test('Postfix decrement number', () => {
 
     expect(newState).toEqual({ num: 1 });
     expect(oldState).toEqual({ num: 2 });
+});
+
+test('Switch', () => {
+    const reducer = redcr((state: StringState) => {
+        const value: number = 1;
+        switch (value) {
+            case 1:
+                state.str = 'one';
+                break;
+            case 2: 
+                state.str = 'two';
+                break;
+        }
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'one' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Switch with fallthrough', () => {
+    const reducer = redcr((state: StringState) => {
+        const value: number = 1;
+        switch (value) {
+            case 1:
+            case 2: 
+                state.str = 'one or two';
+                break;
+        }
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'one or two' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Switch with default', () => {
+    const reducer = redcr((state: StringState) => {
+        const value: number = 99;
+        switch (value) {
+            case 1:
+                state.str = 'one';
+                break;
+            default:
+                state.str = 'not one'
+        }
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'not one' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Switch with an if-statement containing a break statement', () => {
+    const reducer = redcr((state: StringState) => {
+        const value1: number = 1;
+        const value2: number = 99;
+        switch (value1) {
+            case 1:
+                state.str += 'aaa';
+                if (value2 > 5) {
+                    state.str += 'bbb';
+                    break;
+                }
+                state.str += 'ccc';
+            case 2:
+                state.str += 'ddd';
+                break;
+            default:
+                state.str = 'not one or two'
+        }
+    });
+    const oldState: StringState = { str: '' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'aaabbb' });
+    expect(oldState).toEqual({ str: '' });
 });

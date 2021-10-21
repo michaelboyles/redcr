@@ -130,6 +130,7 @@ function createStatementsForAllBranches(state: TransformState, stateParam: ts.Id
     // Iterate through all statements until we hit a branch, then parse all the queued items in one shot
     var queue: ts.Statement[] = [];
     inputStatements.forEach(statement => {
+        const { ctx: { factory } } = state;
         if (ts.isIfStatement(statement)) {
             createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
             queue = [];
@@ -137,10 +138,41 @@ function createStatementsForAllBranches(state: TransformState, stateParam: ts.Id
             const thenStatements = getStatementsFromPossibleBlock(statement.thenStatement);
             const elseStatements = (!statement.elseStatement) ? [] : getStatementsFromPossibleBlock(statement.elseStatement);
             newStatements.push(
-                state.ctx.factory.createIfStatement(
+                factory.createIfStatement(
                     statement.expression,
-                    state.ctx.factory.createBlock(createStatementsForAllBranches(state, stateParam, thenStatements)),
-                    elseStatements.length == 0 ? undefined : state.ctx.factory.createBlock(createStatementsForAllBranches(state, stateParam, elseStatements))
+                    factory.createBlock(createStatementsForAllBranches(state, stateParam, thenStatements)),
+                    elseStatements.length == 0 ? undefined : factory.createBlock(createStatementsForAllBranches(state, stateParam, elseStatements))
+                )
+            );
+        }
+        else if (ts.isSwitchStatement(statement)) {
+            newStatements.push(
+                factory.createSwitchStatement(
+                    statement.expression,
+                    factory.createCaseBlock(
+                        statement.caseBlock.clauses.map(clause => {
+                            const originalStatements: ts.Statement[] = [];
+                            let hasBreak: boolean = false;
+                            for (const statement of clause.statements) {
+                                if (ts.isBreakStatement(statement)) {
+                                    hasBreak = true;
+                                    break;
+                                }
+                                originalStatements.push(statement);
+                            }
+                            const newStatements = createStatementsForAllBranches(state, stateParam, originalStatements);
+                            if (ts.isCaseClause(clause)) {
+                                if (hasBreak) {
+                                    newStatements.push(factory.createBreakStatement());
+                                }
+                                return factory.createCaseClause(clause.expression, newStatements);
+                            }
+                            else if (ts.isDefaultClause(clause)) {
+                                return factory.createDefaultClause(newStatements);
+                            }
+                            return assertExhaustive(clause);
+                        })
+                    )
                 )
             );
         }
@@ -180,13 +212,13 @@ function createStatementsForBranch(state: TransformState, stateParam: ts.Identif
         return nonMutationStatements;
     }
     return [
-        ...nonMutationStatements,
         state.ctx.factory.createExpressionStatement(
             state.ctx.factory.createAssignment(
                 stateParam,
                 convertObjTree(state, targetNode).initializer
             )
-        )
+        ),
+        ...nonMutationStatements
     ];
 }
 
