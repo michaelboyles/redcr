@@ -29,8 +29,10 @@ interface UnaryOperation extends BaseMutation {
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
 interface ArrayOperation extends BaseMutation {
     type: 'arrayOp',
-    funcName: string,
-    args: ts.Expression[];
+    addToStart: ts.Expression[],
+    addToEnd: ts.Expression[]
+    removeFromStart: number,
+    removeFromEnd: number
 }
 
 interface DeleteOperation extends BaseMutation {
@@ -256,8 +258,10 @@ function getArrayOpsInStatements(state: TransformState, statements: ts.Statement
                 accessChain.pop(); // Remove the name of the function
                 arrayOps.push({
                     type: 'arrayOp',
-                    funcName,
-                    args: child.arguments.map(arg => arg),
+                    addToStart: funcName === 'unshift' ? child.arguments.map(arg => arg) : [],
+                    addToEnd: funcName === 'push' ? child.arguments.map(arg => arg) : [],
+                    removeFromStart: funcName === 'shift' ? 1 : 0,
+                    removeFromEnd: funcName === 'pop' ? 1 : 0,
                     accessChain,
                     statement
                 });
@@ -334,6 +338,11 @@ function buildObjTree(mutations: Mutation[]): ObjTreeNode {
                 };
                 currentNode.children.push(childNode);
             }
+            else if (isLast) {
+                if (isArrayOperation(childNode.mutation) && isArrayOperation(mutation)) {
+                    childNode.mutation = mergeArrayOperations(childNode.mutation, mutation);
+                }
+            }
             currentNode = childNode;
         })
     });
@@ -388,49 +397,31 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                 objTree.mutation.value
             );
         }
-        else if (objTree.mutation?.type === 'arrayOp') {
-            if (objTree.mutation.funcName === 'push') {
-                exprValue = ctx.factory.createArrayLiteralExpression([
-                    ctx.factory.createSpreadElement(
+        else if (isArrayOperation(objTree?.mutation)) {
+            exprValue = ctx.factory.createArrayLiteralExpression([
+                ...(objTree.mutation.addToStart),
+                ctx.factory.createSpreadElement(
+                    (objTree.mutation.removeFromEnd + objTree.mutation.removeFromStart === 0) ?
                         createChainedPropertyExpr(ctx, objTree.path)
-                    ),
-                    ...objTree.mutation.args
-                ]);
-            }
-            else if (objTree.mutation.funcName === 'pop') {
-                exprValue = ctx.factory.createCallExpression(
-                    ctx.factory.createPropertyAccessExpression(
-                        createChainedPropertyExpr(ctx, objTree.path), 'slice'
-                    ),
-                    [],
-                    [
-                        ctx.factory.createNumericLiteral(0),
-                        ctx.factory.createSubtract(
+                        :
+                        ctx.factory.createCallExpression(
                             ctx.factory.createPropertyAccessExpression(
-                                createChainedPropertyExpr(ctx, objTree.path), 'length'
+                                createChainedPropertyExpr(ctx, objTree.path), 'slice'
                             ),
-                            ctx.factory.createNumericLiteral(1)
+                            [],
+                            [
+                                ctx.factory.createNumericLiteral(objTree.mutation.removeFromStart),
+                                ctx.factory.createSubtract(
+                                    ctx.factory.createPropertyAccessExpression(
+                                        createChainedPropertyExpr(ctx, objTree.path), 'length'
+                                    ),
+                                    ctx.factory.createNumericLiteral(objTree.mutation.removeFromEnd)
+                                )
+                            ]
                         )
-                    ]
-                );
-            }
-            else if (objTree.mutation.funcName === 'shift') {
-                exprValue = ctx.factory.createCallExpression(
-                    ctx.factory.createPropertyAccessExpression(
-                        createChainedPropertyExpr(ctx, objTree.path), 'slice'
-                    ),
-                    [],
-                    [ctx.factory.createNumericLiteral(1)]
-                );
-            }
-            else if (objTree.mutation.funcName === 'unshift') {
-                exprValue = ctx.factory.createArrayLiteralExpression([
-                    ...objTree.mutation.args,
-                    ctx.factory.createSpreadElement(
-                        createChainedPropertyExpr(ctx, objTree.path)
-                    )
-                ]);
-            }
+                ),
+                ...(objTree.mutation.addToEnd)
+            ]);
         }
         else if (objTree.mutation?.type === 'unary') {
             if (objTree.mutation.subType === 'increment') {
@@ -501,7 +492,8 @@ function printObjTree(nd: ObjTreeNode, indent: string = '') {
         str += nd.mutation.value.getText();
     }
     else if (nd.mutation?.type === 'arrayOp') {
-        str += (nd.mutation.funcName + '(' + nd.mutation.args.map(arg => arg.getText()).join() + ')');
+        str += `${nd.mutation.addToStart.length} items added to start, ${nd.mutation.addToEnd.length} items added to end, `;
+        str += `${nd.mutation.removeFromStart} items removed from start, ${nd.mutation.removeFromEnd} items removed from end`
     }
     else if (nd.mutation?.type === 'delete') {
         str += 'DELETE';
@@ -552,4 +544,34 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             )
         );
     }
+}
+
+function isArrayOperation(mutation?: Mutation): mutation is ArrayOperation {
+    return mutation?.type === 'arrayOp';
+}
+
+function mergeArrayOperations(first: ArrayOperation, second: ArrayOperation): Mutation {
+    let addToEnd: ts.Expression[] = [...first.addToEnd, ...second.addToEnd];
+    let addToStart: ts.Expression[] = [...second.addToStart, ...first.addToStart];
+    let removeFromEnd: number = first.removeFromEnd + second.removeFromEnd;
+    let removeFromStart: number = first.removeFromStart + second.removeFromStart;
+
+    if (second.removeFromEnd && first.addToEnd.length) {
+        const diff = second.removeFromEnd - first.addToEnd.length;
+        addToEnd = first.addToEnd.slice(0, Math.max(0, diff));
+        removeFromEnd = first.removeFromEnd + Math.abs(diff);
+    }
+    if (second.removeFromStart && first.addToStart.length) {
+        const diff = second.removeFromStart - first.addToStart.length;
+        addToStart = first.addToStart.slice(0, Math.max(0, diff));
+        removeFromStart = first.removeFromStart + Math.abs(diff);
+    }
+
+    return {
+        ...first,
+        addToEnd,
+        addToStart,
+        removeFromEnd,
+        removeFromStart
+    };
 }

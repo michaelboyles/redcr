@@ -712,3 +712,99 @@ test('Switch with an if-statement containing a break statement', () => {
     expect(newState).toEqual({ str: 'aaabbb' });
     expect(oldState).toEqual({ str: '' });
 });
+
+test('Consecutive array pushes', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.push(2, 3);
+        state.arr.push(4);
+    });
+    const oldState: NumberArrayState = { arr: [1] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1, 2, 3, 4] });
+    expect(oldState).toEqual({ arr: [1] });
+});
+
+test('Consecutive array pops', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.pop();
+        state.arr.pop();
+    });
+    const oldState: NumberArrayState = { arr: [1, 2, 3] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1] });
+    expect(oldState).toEqual({ arr: [1, 2, 3] });
+});
+
+test('Consecutive array shifts', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.shift();
+        state.arr.shift();
+    });
+    const oldState: NumberArrayState = { arr: [1, 2, 3] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [3] });
+    expect(oldState).toEqual({ arr: [1, 2, 3] });
+});
+
+test('Consecutive array unshifts', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.unshift(2, 3);
+        state.arr.unshift(1);
+    });
+    const oldState: NumberArrayState = { arr: [4] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1, 2, 3, 4] });
+    expect(oldState).toEqual({ arr: [4] });
+});
+
+test('Array unshift then array push', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.unshift(1);
+        state.arr.push(3);
+    });
+    const oldState: NumberArrayState = { arr: [2] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1, 2, 3] });
+    expect(oldState).toEqual({ arr: [2] });
+});
+
+test('Array shift then array pop', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.shift();
+        state.arr.pop();
+    });
+    const oldState: NumberArrayState = { arr: [1, 2, 3] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [2] });
+    expect(oldState).toEqual({ arr: [1, 2, 3] });
+});
+
+test('Inverse operations result in no-op, appending to end', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.push(4);
+        state.arr.pop();
+    });
+    const oldState: NumberArrayState = { arr: [1, 2, 3] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1, 2, 3] });
+    expect(oldState).toEqual({ arr: [1, 2, 3] });
+});
+
+test('Inverse operations result in no-op, appending to start', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.unshift(1);
+        state.arr.shift();
+    });
+    const oldState: NumberArrayState = { arr: [2, 3, 4] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [2, 3, 4] });
+    expect(oldState).toEqual({ arr: [2, 3, 4] });
+});
