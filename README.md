@@ -15,7 +15,7 @@ Redcr works by taking a known set of mutations and automatically converting them
 TypeScript compiler transforms. You can write the following reducer using normal, mutable operations:
 
 ```typescript
-const reducer = redcr((state: State) => {
+const myReducer = redcr((state: State) => {
     state.child.str = 'new';
     state.array.push(1);
     state.anotherArray.pop();
@@ -71,6 +71,7 @@ Then in your `tsconfig.json` add the transformation:
 | Assignment            | `foo.bar = 123`                      |
 | Bracket syntax        | `foo['bar'] = 123`                   |
 | String concatenation  | `foo.bar += 'hello'`                 |
+| Delete operator       | `delete foo.bar`                     |
 | Array access by index | `foo.arr[0] = 123`                   |
 | Array.push            | `foo.arr.push(123)`                  |
 | Array.pop             | `foo.arr.pop()`                      |
