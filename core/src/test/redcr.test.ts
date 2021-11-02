@@ -12,6 +12,7 @@ interface TwoNumberState {
     first: number,
     second: number
 }
+type TwoOptionalNumberState = Partial<TwoNumberState>;
 interface NumberArrayState {
     arr: number[]
 }
@@ -222,6 +223,30 @@ test('Dynamic field delete', () => {
 
     expect(newState).toEqual({});
     expect(oldState).toEqual({str: 'old'});
+});
+
+test('Delete two properties of object', () => {
+    const reducer = redcr((state: TwoOptionalNumberState) => {
+        delete state.first;
+        delete state.second;
+    });
+    const oldState: TwoOptionalNumberState = { first: 1, second: 2 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({});
+    expect(oldState).toEqual({ first: 1, second: 2 });
+});
+
+test('Delete two properties of object dynamically', () => {
+    const reducer = redcr((state: TwoOptionalNumberState) => {
+        delete state['first'];
+        delete state['second'];
+    });
+    const oldState: TwoOptionalNumberState = { first: 1, second: 2 };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({});
+    expect(oldState).toEqual({ first: 1, second: 2 });
 });
 
 test('Conditional assignment is true', () => {
