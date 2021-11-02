@@ -7,14 +7,21 @@ alternative to [Immer](https://github.com/immerjs/immer).
 
 <p align="center">👉 &nbsp;<a href="https://michaelboyles.github.io/redcr/">Try the online REPL<a> 👈</p>
 
-Immer works by create a "draft copy" of the state you wish to change and mututating the draft copy. This has a performance impact
-[approximately 2-6 times worse](https://immerjs.github.io/immer/performance) than a handwritten reducer. Handwritten reducers
-are unwieldy, that's why Immer exists in the first place.
+Redux reducers require you to update your state in an immutable way, by creating a copy of the previous state with any changes applied.
+In mordern JavaScript, this can involve a tonne of spread operators. It's difficult to read and write a reducer in this way.
+    
+Immer takes a runtime approach to solving this problem which has a performance impact 
+[approximately 2-6 times worse](https://immerjs.github.io/immer/performance) than a handwritten reducer, and involves shipping an additional
+dependency to clients.
 
-Redcr works by taking a known set of mutations and automatically converting them to immutable operations using
-TypeScript compiler transforms. You can write the following reducer using normal, mutable operations:
+Redcr works at compile-time by automatically converting any reducer wrapped in `redcr(...)` to use immutable operations instead of mutable
+ones. Redcr has no impact on runtime bundle size, and theoretically has comparable performance to a handwritten reducer.
+
+For example, this reducer 
 
 ```typescript
+import { redcr } from 'redcr';
+
 const myReducer = redcr((state: State) => {
     state.child.str = 'new';
     state.array.push(1);
@@ -22,7 +29,8 @@ const myReducer = redcr((state: State) => {
 });
 ```
 
-These mutable operations will be automatically replaced with their immutable counterparts when the code is compiled to JavaScript:
+will be automatically converted to something like this (the exact output depends on what ES version you're targeting) when the code is
+compiled to JavaScript:
 
 ```typescript
 const myReducer = (state) => {
@@ -37,8 +45,6 @@ const myReducer = (state) => {
     };
 };
 ```
-
-Browser support for the spread operator is not required, since TypeScript can replace it with a polyfill. 
 
 ## 💿 Install
 
