@@ -6,8 +6,10 @@ import { debounce } from "lodash";
 import { SampleSelect } from './SampleSelect';
 import { TargetSelect, Target } from './TargetSelect';
 
-const apiUrl = 'https://jkg8ezjhhk.execute-api.eu-west-2.amazonaws.com/default';
-const issueUrl = 'https://github.com/michaelboyles/redcr/issues/new?assignees=michaelboyles&labels=bug&template=bug_report.md&title=%5BBUG%5D+Enter+a+title';
+declare var __REDCR_CONFIG: {
+    apiUrl: string;
+    issueUrl: string;
+}
 
 export const Repl = () => {
     const [target, setTarget] = useState<Target>('ES2020');
@@ -24,7 +26,7 @@ export const Repl = () => {
     const fetchCodeNow = useCallback(async (target: string, newSource: string) => {
         setIsCompiling(true);
 
-        const resp = await fetch(`${apiUrl}/convert?target=${target}&code=${encodeURIComponent(newSource)}`)
+        const resp = await fetch(`${__REDCR_CONFIG.apiUrl}/convert?target=${target}&code=${encodeURIComponent(newSource)}`)
         setIsCompiling(false);
         if (resp.ok) {
             const text = await resp.text();
@@ -59,7 +61,7 @@ export const Repl = () => {
                 <header>
                     <h2>Output - JavaScript {target}</h2>
                     <TargetSelect initialTarget={target} onChange={target => { setTarget(target); fetchCodeNow(target, leftText) } } />
-                    <div className='report-issue'>Something look wrong? <a href={issueUrl}>Report an issue</a></div>
+                    <div className='report-issue'>Something look wrong? <a href={__REDCR_CONFIG.issueUrl}>Report an issue</a></div>
                 </header>
                 <Editor
                     value={rightText}
