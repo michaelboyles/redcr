@@ -11,11 +11,15 @@ declare var __REDCR_CONFIG: {
     issueUrl: string;
 }
 
+enum Status {
+    COMPILED, COMPILING, ERROR
+}
+
 export const Repl = () => {
     const [target, setTarget] = useState<Target>('ES2020');
     const [leftText, setLeftText] = useState('');
     const [rightText, setRightText] = useState('');
-    const [isCompiling, setIsCompiling] = useState(false);
+    const [status, setStatus] = useState(Status.COMPILED);
 
     const configureMonaco = (monaco: Monaco) => {
         monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -24,15 +28,22 @@ export const Repl = () => {
     }
 
     const fetchCodeNow = useCallback(async (target: string, newSource: string) => {
-        setIsCompiling(true);
-
-        const resp = await fetch(`${__REDCR_CONFIG.apiUrl}/convert?target=${target}&code=${encodeURIComponent(newSource)}`)
-        setIsCompiling(false);
-        if (resp.ok) {
-            const text = await resp.text();
-            setRightText(text);
+        setStatus(Status.COMPILING);
+        try {
+            const resp = await fetch(`${__REDCR_CONFIG.apiUrl}/convert?target=${target}&code=${encodeURIComponent(newSource)}`)
+            if (resp.ok) {
+                const text = await resp.text();
+                setRightText(text);
+                setStatus(Status.COMPILED);
+            }
+            else {
+                setStatus(Status.ERROR);
+            }
         }
-    }, [setIsCompiling, setRightText]);
+        catch (err) {
+            setStatus(Status.ERROR);
+        }       
+    }, [setStatus, setRightText]);
 
     const fetchCode = useCallback(
         debounce(fetchCodeNow, 500), [fetchCodeNow]
@@ -68,7 +79,12 @@ export const Repl = () => {
                     language="javascript"
                     options={{readOnly: true, minimap: {enabled: false}}}
                 />
-                {isCompiling ? <div className='loading'><div className='text'>Compiling...</div></div> : null}
+                {
+                    status === Status.COMPILED ? null :
+                        <div className='overlay'>
+                            <div className='text'>{status === Status.COMPILING ? 'Compiling...' : 'There was an error'}</div>
+                        </div>
+                }
             </div>
         </div>
     );
