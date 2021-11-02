@@ -1,6 +1,6 @@
 {
   "name": "redcr",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Simplify writing Redux reducers with compile-time transformations",
   "scripts": {
     "build": "ttsc && node build/copy-to-dist.js",
