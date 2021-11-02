@@ -5,22 +5,32 @@
 Redcr (pronounced *redka* [like the British town](https://en.wikipedia.org/wiki/Redcar)) is an experimental
 alternative to [Immer](https://github.com/immerjs/immer).
 
-Immer works by create a "draft copy" of the state you wish to change and mututating the draft copy. This has a performance impact
-[approximately 2-6 times worse](https://immerjs.github.io/immer/performance) than a handwritten reducer. Handwritten reducers
-are unwieldy, that's why Immer exists in the first place.
+<p align="center">👉 &nbsp;<a href="https://michaelboyles.github.io/redcr/">Try the online REPL<a> 👈</p>
 
-Redcr works by taking a known set of mutations and automatically converting them to immutable operations using
-TypeScript compiler transforms. You can write the following reducer using normal, mutable operations:
+Redux reducers require you to update your state in an immutable way, by creating a copy of the previous state with any changes applied.
+In mordern JavaScript, this can involve a tonne of spread operators. It's difficult to read and write a reducer in this way.
+    
+Immer takes a runtime approach to solving this problem which has a performance impact 
+[approximately 2-6 times worse](https://immerjs.github.io/immer/performance) than a handwritten reducer, and involves shipping an additional
+dependency to clients.
+
+Redcr works at compile-time by automatically converting any reducer wrapped in `redcr(...)` to use immutable operations instead of mutable
+ones. Redcr has no impact on runtime bundle size, and theoretically has comparable performance to a handwritten reducer.
+
+For example, this reducer 
 
 ```typescript
-const reducer = redcr((state: State) => {
+import { redcr } from 'redcr';
+
+const myReducer = redcr((state: State) => {
     state.child.str = 'new';
     state.array.push(1);
     state.anotherArray.pop();
 });
 ```
 
-These mutable operations will be automatically replaced with their immutable counterparts when the code is compiled to JavaScript:
+will be automatically converted to something like this (the exact output depends on what ES version you're targeting) when the code is
+compiled to JavaScript:
 
 ```typescript
 const myReducer = (state) => {
@@ -36,15 +46,13 @@ const myReducer = (state) => {
 };
 ```
 
-Browser support for the spread operator is not required, since TypeScript can replace it with a polyfill. 
-
-## Install
+## 💿 Install
 
 **Redcr** works by using TypeScript compiler transforms. Even though this is a [native TypeScript feature](https://github.com/microsoft/TypeScript-wiki/blob/master/Using-the-Compiler-API.md), it's not yet exposed publically. You need
 [**ttypescript**](https://github.com/cevek/ttypescript) which is a smaller wrapper around TypeScript which exposes that feature.
 
 ```
-npm install --save-dev jsx-conditionals ttypescript
+npm install --save-dev redcr ttypescript
 ```
 
 Follow [**ttypescript**'s setup](https://github.com/cevek/ttypescript#how-to-use) for the specific tools you're using. There is
@@ -56,20 +64,31 @@ Then in your `tsconfig.json` add the transformation:
 {
     "compilerOptions": {
         "plugins": [
-            { "transform": "./node_modules/redcr/transform.js" },
+            { "transform": "redcr/transform" },
         ]
     }
 }
 ```
 
-## Currently supported operations
+## 📙 Supported operations
 
- - Assignment
-    - Simple property e.g. `state.foo.bar = 123;`
-    - Bracket syntax e.g. `state['foo'].bar = 123;`
-    - Array index e.g. `state.arr[3] = 123;`
- - These array operations
-    - push e.g. `state.arr.push(1, 2, 3);`
-    - pop e.g. `state.arr.pop();`
-    - shift e.g. `state.arr.shift();`
-    - unshift e.g. `state.arr.unshift(1, 2);`
+| Type                  | Example                              |
+|-----------------------|--------------------------------------|
+| Assignment            | `foo.bar = 123`                      |
+| Bracket syntax        | `foo['bar'] = 123`                   |
+| String concatenation  | `foo.bar += 'hello'`                 |
+| Delete operator       | `delete foo.bar`                     |
+| Array access by index | `foo.arr[0] = 123`                   |
+| Array.push            | `foo.arr.push(123)`                  |
+| Array.pop             | `foo.arr.pop()`                      |
+| Array.shift           | `foo.arr.shift()`                    |
+| Array.unshift         | `foo.arr.unshift(123)`               |
+| Conditional mutation  | ``` if (condition) foo.bar = 123 ``` |
+| Local variables       | ``` let tmp = 3; foo.bar = tmp; ```  |
+| Increment/decrement   | ``` foo.num++; foo.bar--; ```        |
+
+See [proposed features](https://github.com/michaelboyles/redcr/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+    
+ ## 📝 Contributing 
+
+Contributions are welcome. Bug reports and use-cases are just as valuable as PRs. All code changes must be accompanied by tests.

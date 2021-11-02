@@ -1,0 +1,6 @@
+{
+    "compilerOptions": {
+        "jsx": "react"
+    },
+    "exclude": ["**/*.sample.ts"]
+}

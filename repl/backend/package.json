@@ -1,0 +1,25 @@
+{
+  "name": "redcr-repl-backend",
+  "version": "0.0.1",
+  "description": "Backend for Redcr online REPL",
+  "private": true,
+  "scripts": {
+    "build": "webpack && node ./build/copy-ts-lib.js && node ./build/zip.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^16.6.1",
+    "@typescript/vfs": "^1.3.4",
+    "aws-sdk": "^2.967.0",
+    "js-beautify": "^1.14.0",
+    "typescript": "^4.3.5"
+  },
+  "devDependencies": {
+    "@tsconfig/node14": "^1.0.1",
+    "@types/aws-lambda": "^8.10.82",
+    "archiver": "^5.3.0",
+    "ts-loader": "^9.2.5",
+    "webpack": "^5.50.0",
+    "webpack-cli": "^4.7.2"
+  }
+}

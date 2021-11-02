@@ -1,0 +1,53 @@
+{
+  "name": "redcr",
+  "version": "0.0.2",
+  "description": "Simplify writing Redux reducers with compile-time transformations",
+  "scripts": {
+    "build": "ttsc && node build/copy-to-dist.js",
+    "test": "jest --clearCache && jest",
+    "instrument": "istanbul instrument dist/ -o coverage/instrumented/",
+    "testcov": "npm run instrument && jest --clearCache && nyc --reporter=lcov jest --config jest-cov.config.js",
+    "prepack": "node ../build/message.js"
+  },
+  "keywords": [
+    "react",
+    "redux",
+    "reducers",
+    "immer"
+  ],
+  "author": "Michael Boyles <michael@boyl.es> (https://boyl.es)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelboyles/redcr"
+  },
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "transform.js"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "devDependencies": {
+    "@istanbuljs/nyc-config-typescript": "^1.0.1",
+    "@types/jest": "^27.0.2",
+    "@types/node": "^16.11.6",
+    "istanbul": "^0.4.5",
+    "jest": "^27.3.1",
+    "nyc": "^15.1.0",
+    "source-map-support": "^0.5.20",
+    "ts-jest": "^27.0.7",
+    "ts-node": "^10.4.0",
+    "ttypescript": "1.5.12",
+    "typescript": "^4.4.4"
+  },
+  "nyc": {
+    "all": true,
+    "exclude": [
+      "build/**",
+      "coverage/**",
+      "*.config.js"
+    ],
+    "temp-dir": "./coverage/.nyc_output"
+  }
+}
