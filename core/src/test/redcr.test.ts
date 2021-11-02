@@ -808,3 +808,59 @@ test('Inverse operations result in no-op, appending to start', () => {
     expect(newState).toEqual({ arr: [2, 3, 4] });
     expect(oldState).toEqual({ arr: [2, 3, 4] });
 });
+
+test('For-loop string concatenation', () => {
+    const reducer = redcr((state: StringState) => {
+        for (let i = 1; i <= 3; ++i) {
+            state.str += i;
+        }
+    });
+    const oldState: StringState = { str: '' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: '123' });
+    expect(oldState).toEqual({ str: '' });
+});
+
+test('Nested for-loop string concatenation', () => {
+    const reducer = redcr((state: StringState) => {
+        for (let i = 1; i <= 3; ++i) {
+            for (let j = 1; j <= 3; ++j) {
+                state.str += (i + j);
+            }
+            state.str += ' ';
+        }
+    });
+    const oldState: StringState = { str: '' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: '234 345 456 ' });
+    expect(oldState).toEqual({ str: '' });
+});
+
+test('For-of-loop string concatenation', () => {
+    const reducer = redcr((state: StringState) => {
+        for (const i of [1, 2, 3]) {
+            state.str += i;
+        }
+    });
+    const oldState: StringState = { str: '' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: '123' });
+    expect(oldState).toEqual({ str: '' });
+});
+
+test('For-in-loop string concatenation', () => {
+    const reducer = redcr((state: StringState) => {
+        const obj = {a: '1', b: '2', c: '3'};
+        for (const i in obj) {
+            state.str += i;
+        }
+    });
+    const oldState: StringState = { str: '' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'abc' });
+    expect(oldState).toEqual({ str: '' });
+});

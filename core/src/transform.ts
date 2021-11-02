@@ -2,6 +2,7 @@ import * as ts from 'typescript';
 import { isPropAccessEqual, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
 import { assertExhaustive, isAssignment, isExpression, strKind, TransformState } from './util';
 import { removeLocalVariables } from './remove-locals';
+import { updateForInBody, updateForLoopBody, updateForOfBody } from './ast';
 
 interface BaseMutation {
     statement: ts.Statement;
@@ -175,6 +176,39 @@ function createStatementsForAllBranches(state: TransformState, stateParam: ts.Id
                             return assertExhaustive(clause);
                         })
                     )
+                )
+            );
+        }
+        else if (ts.isForStatement(statement)) {
+            createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
+            queue = [];
+
+            newStatements.push(
+                updateForLoopBody(
+                    factory, statement,
+                    factory.createBlock(createStatementsForAllBranches(state, stateParam, getStatementsFromPossibleBlock(statement.statement)))
+                )
+            );
+        }
+        else if (ts.isForInStatement(statement)) {
+            createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
+            queue = [];
+
+            newStatements.push(
+                updateForInBody(
+                    factory, statement,
+                    factory.createBlock(createStatementsForAllBranches(state, stateParam, getStatementsFromPossibleBlock(statement.statement)))
+                )
+            );
+        }
+        else if (ts.isForOfStatement(statement)) {
+            createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
+            queue = [];
+
+            newStatements.push(
+                updateForOfBody(
+                    factory, statement,
+                    factory.createBlock(createStatementsForAllBranches(state, stateParam, getStatementsFromPossibleBlock(statement.statement)))
                 )
             );
         }
