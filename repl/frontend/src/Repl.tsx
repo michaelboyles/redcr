@@ -6,7 +6,7 @@ import { debounce } from "lodash";
 import { SampleSelect } from './SampleSelect';
 import { TargetSelect, Target } from './TargetSelect';
 
-const apiUrl = 'https://bm5q7jmqm4.execute-api.eu-west-2.amazonaws.com/default';
+const apiUrl = 'https://jkg8ezjhhk.execute-api.eu-west-2.amazonaws.com/default';
 const issueUrl = 'https://github.com/michaelboyles/redcr/issues/new?assignees=michaelboyles&labels=bug&template=bug_report.md&title=%5BBUG%5D+Enter+a+title';
 
 export const Repl = () => {
