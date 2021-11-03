@@ -834,6 +834,30 @@ test('Inverse operations result in no-op, appending to start', () => {
     expect(oldState).toEqual({ arr: [2, 3, 4] });
 });
 
+test('Pushing multiple elements then popping partially undoes the push', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.push(4, 5);
+        state.arr.pop();
+    });
+    const oldState: NumberArrayState = { arr: [1, 2, 3] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [1, 2, 3, 4] });
+    expect(oldState).toEqual({ arr: [1, 2, 3] });
+});
+
+test('Unshifting multiple elements then shifting partially undoes the unshift', () => {
+    const reducer = redcr((state: NumberArrayState) => {
+        state.arr.unshift(1, 2, 3);
+        state.arr.shift();
+    });
+    const oldState: NumberArrayState = { arr: [4, 5] };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ arr: [2, 3, 4, 5] });
+    expect(oldState).toEqual({ arr: [4, 5] });
+});
+
 test('For-loop string concatenation', () => {
     const reducer = redcr((state: StringState) => {
         for (let i = 1; i <= 3; ++i) {

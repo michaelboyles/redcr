@@ -591,14 +591,24 @@ function mergeArrayOperations(first: ArrayOperation, second: ArrayOperation): Mu
     let removeFromStart: number = first.removeFromStart + second.removeFromStart;
 
     if (second.removeFromEnd && first.addToEnd.length) {
-        const diff = second.removeFromEnd - first.addToEnd.length;
-        addToEnd = first.addToEnd.slice(0, Math.max(0, diff));
-        removeFromEnd = first.removeFromEnd + Math.abs(diff);
+        if (first.addToEnd.length > second.removeFromEnd) {
+            removeFromEnd = 0;
+            addToEnd = first.addToEnd.slice(0, first.addToEnd.length - second.removeFromEnd);
+        }
+        else {
+            removeFromEnd = second.removeFromEnd - first.addToEnd.length;
+            addToEnd = [];
+        }
     }
     if (second.removeFromStart && first.addToStart.length) {
-        const diff = second.removeFromStart - first.addToStart.length;
-        addToStart = first.addToStart.slice(0, Math.max(0, diff));
-        removeFromStart = first.removeFromStart + Math.abs(diff);
+        if (first.addToStart.length > second.removeFromStart) {
+            removeFromStart = 0;
+            addToStart = first.addToStart.slice(second.removeFromStart);
+        }
+        else {
+            removeFromStart = second.removeFromStart - first.addToStart.length;
+            addToStart = [];
+        }
     }
 
     return {
