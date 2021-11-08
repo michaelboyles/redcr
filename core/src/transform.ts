@@ -115,16 +115,14 @@ function replaceReducer(state: TransformState, params: ts.ParameterDeclaration[]
         throw new Error("Can't use destructuring here");
     }
 
+    const newStatements = createStatementsForAllBranches(state, params[0].name, removeLocalVariables(state, statements));
+    if (!ts.isReturnStatement(newStatements[newStatements.length - 1])) {
+        newStatements.push(state.ctx.factory.createReturnStatement(params[0].name));
+    }
     return ctx.factory.createArrowFunction(
-        [],
-        [],
-        params,
-        undefined,
+        [], [], params, undefined,
         ctx.factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-        ctx.factory.createBlock([
-            ...createStatementsForAllBranches(state, params[0].name, removeLocalVariables(state, statements)),
-            state.ctx.factory.createReturnStatement(params[0].name)
-        ])
+        ctx.factory.createBlock(newStatements)
     );
 }
 
@@ -132,9 +130,18 @@ function createStatementsForAllBranches(state: TransformState, stateParam: ts.Id
     const newStatements: ts.Statement[] = [];
     // Iterate through all statements until we hit a branch, then parse all the queued items in one shot
     var queue: ts.Statement[] = [];
-    inputStatements.forEach(statement => {
+    for (const statement of inputStatements) {
         const { ctx: { factory } } = state;
-        if (ts.isIfStatement(statement)) {
+        if (ts.isReturnStatement(statement)) {
+            if (!statement.expression) {
+                queue.push(factory.createReturnStatement(stateParam));
+            }
+            else {
+                queue.push(statement);
+            }
+            break;
+        }
+        else if (ts.isIfStatement(statement)) {
             createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
             queue = [];
 
@@ -215,7 +222,7 @@ function createStatementsForAllBranches(state: TransformState, stateParam: ts.Id
         else {
             queue.push(statement);
         }
-    });
+    };
     if (queue.length > 0) {
         createStatementsForBranch(state, stateParam, queue).forEach(st => newStatements.push(st));
     }

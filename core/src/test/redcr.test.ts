@@ -913,3 +913,58 @@ test('For-in-loop string concatenation', () => {
     expect(newState).toEqual({ str: 'abc' });
     expect(oldState).toEqual({ str: '' });
 });
+
+test('Unnecessary return at end of block', () => {
+    const reducer = redcr((state: StringState) => {
+        state.str = 'new';
+        return;
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'new' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Conditional return', () => {
+    const val = 3;
+    const reducer = redcr((state: StringState) => {
+        if (val === 3) {
+            state.str = '123';
+            return state;
+        }
+        state.str = '456';
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: '123' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Dead statements after a return are ignored', () => {
+    const reducer = redcr((state: StringState) => {
+        return;
+        state.str = 'new';
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: 'old' });
+    expect(oldState).toEqual({ str: 'old' });
+});
+
+test('Allow returning explicit state', () => {
+    const val = 3;
+    const reducer = redcr((state: StringState) => {
+        if (val === 3) {
+            return { str: '123' };
+        }
+        state.str = '456';
+    });
+    const oldState: StringState = { str: 'old' };
+    const newState = reducer(oldState);
+
+    expect(newState).toEqual({ str: '123' });
+    expect(oldState).toEqual({ str: 'old' });
+});
