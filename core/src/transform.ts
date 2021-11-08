@@ -10,13 +10,8 @@ interface BaseMutation {
 }
 
 interface Assignment extends BaseMutation {
-    type: 'assignment',
-    value: ts.Expression;
-    binaryExpr: ts.BinaryExpression;
-}
-
-interface StringConcat extends BaseMutation {
-    type: 'stringConcat',
+    type: 'assignment';
+    token: ts.AssignmentOperatorToken;
     value: ts.Expression;
     binaryExpr: ts.BinaryExpression;
 }
@@ -40,7 +35,7 @@ interface DeleteOperation extends BaseMutation {
     type: 'delete'
 }
 
-type Mutation = Assignment | StringConcat | ArrayOperation | DeleteOperation | UnaryOperation;
+type Mutation = Assignment | ArrayOperation | DeleteOperation | UnaryOperation;
 
 interface ObjTreeNode {
     name: PropAccess,
@@ -273,9 +268,9 @@ function getAssignmentsInStatements(state: TransformState, statements: ts.Statem
         if (isAssignment(statement)) {
             const binaryExpr = statement.expression;
             const accessChain = parseAccessChain(state, binaryExpr.left);
-            const type = binaryExpr.operatorToken.kind === ts.SyntaxKind.EqualsToken ? 'assignment' : 'stringConcat';
             assignments.push({
-                type,
+                type: 'assignment',
+                token: binaryExpr.operatorToken,
                 value: binaryExpr.right,
                 binaryExpr, accessChain, statement
             });
@@ -430,13 +425,104 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
     else {
         let exprValue: ts.Expression | null = null;
         if (objTree.mutation?.type === 'assignment') {
-            exprValue = objTree.mutation.value;
-        }
-        else if (objTree.mutation?.type === 'stringConcat') {
-            exprValue = ts.factory.createAdd(
-                createChainedPropertyExpr(ctx, objTree.path),
-                objTree.mutation.value
-            );
+            switch (objTree.mutation.token.kind) {
+                case ts.SyntaxKind.EqualsToken:
+                    exprValue = objTree.mutation.value;
+                    break;
+                case ts.SyntaxKind.PlusEqualsToken:
+                    exprValue = ctx.factory.createAdd(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    );
+                    break;
+                case ts.SyntaxKind.MinusEqualsToken:
+                    exprValue = ctx.factory.createSubtract(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    );
+                    break;
+                case ts.SyntaxKind.AsteriskEqualsToken:
+                    exprValue = ctx.factory.createMultiply(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.SlashEqualsToken:
+                    exprValue = ctx.factory.createDivide(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.PercentEqualsToken:
+                    exprValue = ctx.factory.createModulo(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.AsteriskAsteriskEqualsToken:
+                    exprValue = ctx.factory.createExponent(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.LessThanLessThanEqualsToken:
+                    exprValue = ctx.factory.createLeftShift(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.GreaterThanGreaterThanEqualsToken:
+                    exprValue = ctx.factory.createRightShift(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
+                    exprValue = ctx.factory.createUnsignedRightShift(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.AmpersandEqualsToken:
+                    exprValue = ts.factory.createBitwiseAnd(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.BarEqualsToken:
+                    exprValue = ctx.factory.createBitwiseOr(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.CaretEqualsToken:
+                    exprValue = ctx.factory.createBitwiseXor(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.AmpersandAmpersandEqualsToken:
+                    exprValue = ctx.factory.createLogicalAnd(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.BarBarEqualsToken:
+                    exprValue = ctx.factory.createLogicalOr(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        objTree.mutation.value
+                    )
+                    break;
+                case ts.SyntaxKind.QuestionQuestionEqualsToken:
+                    exprValue = ctx.factory.createBinaryExpression(
+                        createChainedPropertyExpr(ctx, objTree.path),
+                        ctx.factory.createToken(ts.SyntaxKind.QuestionQuestionToken),
+                        objTree.mutation.value
+                    )
+                    break;
+                default:
+                    throw Error('Unsupported assignment token ' + objTree.mutation.token.kind);
+            }
         }
         else if (isArrayOperation(objTree?.mutation)) {
             exprValue = ctx.factory.createArrayLiteralExpression([
@@ -466,13 +552,13 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
         }
         else if (objTree.mutation?.type === 'unary') {
             if (objTree.mutation.subType === 'increment') {
-                exprValue = ts.factory.createAdd(
+                exprValue = ctx.factory.createAdd(
                     createChainedPropertyExpr(ctx, objTree.path),
                     ctx.factory.createNumericLiteral(1)
                 );
             }
             else if (objTree.mutation.subType === 'decrement') {
-                exprValue = ts.factory.createSubtract(
+                exprValue = ctx.factory.createSubtract(
                     createChainedPropertyExpr(ctx, objTree.path),
                     ctx.factory.createNumericLiteral(1)
                 );

@@ -4,6 +4,9 @@ interface StringState {
     str: string
 }
 type OptionalStringState = Partial<StringState>;
+interface NullableStringState {
+    str: string | null;
+}
 
 interface NumberState {
     num: number,
@@ -967,4 +970,187 @@ test('Allow returning explicit state', () => {
 
     expect(newState).toEqual({ str: '123' });
     expect(oldState).toEqual({ str: 'old' });
+});
+
+describe('Assignment operators', () => {
+    test('Addition assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num += 2);
+        const oldState: NumberState = { num: 0 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 2 });
+        expect(oldState).toEqual({ num: 0 });
+    });
+
+    test('Subtraction assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num -= 2);
+        const oldState: NumberState = { num: 2 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 0 });
+        expect(oldState).toEqual({ num: 2 });
+    });
+    
+    test('Multiplication assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num *= 2);
+        const oldState: NumberState = { num: 2 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 4 });
+        expect(oldState).toEqual({ num: 2 });
+    });
+    
+    test('Division assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num /= 2);
+        const oldState: NumberState = { num: 4 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 2 });
+        expect(oldState).toEqual({ num: 4 });
+    });
+    
+    test('Remainder assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num %= 3);
+        const oldState: NumberState = { num: 10 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 1 });
+        expect(oldState).toEqual({ num: 10 });
+    });
+    
+    test('Exponentiation assignment', () => {
+        const reducer = redcr((state: NumberState) => state.num **= 2);
+        const oldState: NumberState = { num: 10 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 100 });
+        expect(oldState).toEqual({ num: 10 });
+    });
+    
+    describe('Bitshifts', () => {
+        test('Left shift assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num <<= 2);
+            const oldState: NumberState = { num: 0b00100 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0b10000 });
+            expect(oldState).toEqual({ num: 0b00100 });
+        });
+    
+        test('Right shift assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num >>= 2);
+            const oldState: NumberState = { num: 0b100 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0b001 });
+            expect(oldState).toEqual({ num: 0b100 });
+        });
+        
+        test('Unsigned right shift assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num >>>= 0);
+            const oldState: NumberState = { num: -1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0xFFFFFFFF });
+            expect(oldState).toEqual({ num: -1 });
+        });
+    })
+
+    describe('Bitwise assignment', () => {
+        test('Bitwise AND assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num &= 0b100);
+            const oldState: NumberState = { num: 0b101 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0b100 });
+            expect(oldState).toEqual({ num: 0b101 });
+        });
+        
+        test('Bitwise XOR assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num ^= 0b101);
+            const oldState: NumberState = { num: 0b100 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0b001 });
+            expect(oldState).toEqual({ num: 0b100 });
+        });
+        
+        test('Bitwise OR assignment', () => {
+            const reducer = redcr((state: NumberState) => state.num |= 0b001);
+            const oldState: NumberState = { num: 0b100 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0b101 });
+            expect(oldState).toEqual({ num: 0b100 });
+        });
+    })
+    
+    describe('Logical AND assignment', () => {
+        test('LHS truthy', () => {
+            const reducer = redcr((state: NumberState) => state.num &&= 3);
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 3 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+    
+        test('LHS falsy', () => {
+            const reducer = redcr((state: NumberState) => state.num &&= 3);
+            const oldState: NumberState = { num: 0 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 0 });
+            expect(oldState).toEqual({ num: 0 });
+        });
+    });
+
+    describe('Logical OR assignment', () => {
+        test('LHS truthy', () => {
+            const reducer = redcr((state: NumberState) => state.num ||= 3);
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 1 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+    
+        test('LHS falsy', () => {
+            const reducer = redcr((state: NumberState) => state.num ||= 3);
+            const oldState: NumberState = { num: 0 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 3 });
+            expect(oldState).toEqual({ num: 0 });
+        });
+    });
+
+    describe('Logical nullish assignment', () => {
+        test('Existing value is null', () => {
+            const reducer = redcr((state: NullableStringState) => state.str ??= 'new');
+            const oldState: NullableStringState = { str: null };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ str: 'new' });
+            expect(oldState).toEqual({ str: null });
+        });
+
+        test('Existing value is undefined', () => {
+            const reducer = redcr((state: OptionalStringState) => state.str ??= 'new');
+            const oldState: OptionalStringState = {};
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ str: 'new' });
+            expect(oldState).toEqual({});
+        });
+
+        test('Existing value is not null or undefined', () => {
+            const reducer = redcr((state: OptionalStringState) => state.str ??= 'new');
+            const oldState: OptionalStringState = { str: 'old' };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ str: 'old' });
+            expect(oldState).toEqual({ str: 'old' });
+        });
+    });
 });
