@@ -330,23 +330,14 @@ function getUnaryOperations(state: TransformState, statements: ts.Statement[]) {
         if (!ts.isExpressionStatement(statement)) return;
         statement.forEachChild(child => {
             if (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) {
-                let subType: 'increment' | 'decrement';
-                if (child.operator === ts.SyntaxKind.PlusPlusToken) {
-                    subType = 'increment';
+                if (child.operator === ts.SyntaxKind.PlusPlusToken || child.operator === ts.SyntaxKind.MinusMinusToken) {
+                    unaryOps.push({
+                        type: 'unary',
+                        subType: child.operator === ts.SyntaxKind.PlusPlusToken ? 'increment' : 'decrement',
+                        accessChain: parseAccessChain(state, child.operand),
+                        statement
+                    });
                 }
-                else if (child.operator === ts.SyntaxKind.MinusMinusToken) {
-                    subType = 'decrement';
-                }
-                else {
-                    throw new Error('Unsupported unary operator ' + child.operator);
-                }
-
-                unaryOps.push({
-                    type: 'unary',
-                    subType,
-                    accessChain: parseAccessChain(state, child.operand),
-                    statement
-                })
             }
         });
     });

@@ -702,6 +702,54 @@ describe('Unary operators', () => {
             expect(oldState).toEqual({ num: 2 });
         });
     });
+
+    // These operators are syntactically valid unary operators, but using them as statements in their own
+    // right is meaningless. These tests just make sure that redcr doesn't blow up when it encounters them.
+    describe('Meaningless unary operator statements do nothing', () => {
+        test('Exclamation mark', () => {
+            const reducer = redcr((state: NumberState) => {
+                !state.num;
+            });
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 1 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+
+        test('Tilde', () => {
+            const reducer = redcr((state: NumberState) => {
+                ~state.num;
+            });
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 1 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+
+        test('Plus', () => {
+            const reducer = redcr((state: NumberState) => {
+                +state.num;
+            });
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 1 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+
+        test('Minus', () => {
+            const reducer = redcr((state: NumberState) => {
+                -state.num;
+            });
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 1 });
+            expect(oldState).toEqual({ num: 1 });
+        });
+    });
 });
 
 describe('For-loops', () => {
