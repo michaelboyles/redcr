@@ -13,14 +13,7 @@ interface Assignment extends BaseMutation {
     type: 'assignment';
     token: ts.AssignmentOperatorToken;
     value: ts.Expression;
-    binaryExpr: ts.BinaryExpression;
 }
-
-// Prefix vs postfix doesn't matter to us
-interface UnaryOperation extends BaseMutation {
-    type: 'unary';
-    subType: 'increment' | 'decrement';
-};
 
 const supportedArrayOps = ['push', 'pop', 'shift', 'unshift'];
 interface ArrayOperation extends BaseMutation {
@@ -35,7 +28,7 @@ interface DeleteOperation extends BaseMutation {
     type: 'delete'
 }
 
-type Mutation = Assignment | ArrayOperation | DeleteOperation | UnaryOperation;
+type Mutation = Assignment | ArrayOperation | DeleteOperation;
 
 interface ObjTreeNode {
     name: PropAccess,
@@ -272,7 +265,7 @@ function getAssignmentsInStatements(state: TransformState, statements: ts.Statem
                 type: 'assignment',
                 token: binaryExpr.operatorToken,
                 value: binaryExpr.right,
-                binaryExpr, accessChain, statement
+                accessChain, statement
             });
         }
     });
@@ -325,15 +318,20 @@ function getDeleteOperations(state: TransformState, statements: ts.Statement[]) 
 }
 
 function getUnaryOperations(state: TransformState, statements: ts.Statement[]) {
-    const unaryOps: UnaryOperation[] = [];
+    const { factory } = state.ctx;
+    const unaryOps: Assignment[] = [];
     statements.forEach(statement => {
         if (!ts.isExpressionStatement(statement)) return;
         statement.forEachChild(child => {
             if (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) {
                 if (child.operator === ts.SyntaxKind.PlusPlusToken || child.operator === ts.SyntaxKind.MinusMinusToken) {
+                    const assignment = (child.operator === ts.SyntaxKind.PlusPlusToken) ? 
+                        factory.createAdd(child.operand, factory.createNumericLiteral(1)) : factory.createSubtract(child.operand, factory.createNumericLiteral(1));
+
                     unaryOps.push({
-                        type: 'unary',
-                        subType: child.operator === ts.SyntaxKind.PlusPlusToken ? 'increment' : 'decrement',
+                        type: 'assignment',
+                        token: factory.createToken(ts.SyntaxKind.EqualsToken),
+                        value: assignment,
                         accessChain: parseAccessChain(state, child.operand),
                         statement
                     });
@@ -540,20 +538,6 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                 ),
                 ...(objTree.mutation.addToEnd)
             ]);
-        }
-        else if (objTree.mutation?.type === 'unary') {
-            if (objTree.mutation.subType === 'increment') {
-                exprValue = ctx.factory.createAdd(
-                    createChainedPropertyExpr(ctx, objTree.path),
-                    ctx.factory.createNumericLiteral(1)
-                );
-            }
-            else if (objTree.mutation.subType === 'decrement') {
-                exprValue = ctx.factory.createSubtract(
-                    createChainedPropertyExpr(ctx, objTree.path),
-                    ctx.factory.createNumericLiteral(1)
-                );
-            }
         }
 
         if (!exprValue) {
