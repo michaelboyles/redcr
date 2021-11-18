@@ -225,12 +225,11 @@ function getStatementsFromPossibleBlock(statement: ts.Statement): ts.Statement[]
 }
 
 function createStatementsForBranch(state: TransformState, stateParam: ts.Identifier, statements: ts.Statement[]): ts.Statement[] {
-    const assignments = getAssignmentsInStatements(state, statements);
-    const arrayOps = getArrayOpsInStatements(state, statements);
-    const deleteOps = getDeleteOperations(state, statements);
-    const unaryOps = getUnaryOperations(state, statements);
+    const mutationExtractors = [getAssignmentFromStatement, getArrayOpsFromStatement, getDeleteOpFromStatement, getUnaryOpFromStatement];
 
-    const allMutations = [...assignments, ...arrayOps, ...deleteOps, ...unaryOps];
+    const allMutations = statements
+        .flatMap(statement => mutationExtractors.map(extractor => extractor(state, statement)))
+        .filter(Boolean) as Mutation[];
     const objTree = buildObjTree(allMutations);
     //printObjTree(objTree);
     const targetNode = objTree.children.find(child => child.name.type === 'member' && child.name.member.text === stateParam.getText());
@@ -254,92 +253,69 @@ function createStatementsForBranch(state: TransformState, stateParam: ts.Identif
 }
 
 // Get all the binary expressions which represent assignments within the given statements
-function getAssignmentsInStatements(state: TransformState, statements: ts.Statement[]) {
-    const assignments: Mutation[] = [];
+function getAssignmentFromStatement(state: TransformState, statement: ts.Statement): Mutation | null {
+    if (!isAssignment(statement)) return null;
 
-    statements.forEach(statement => {
-        if (isAssignment(statement)) {
-            const binaryExpr = statement.expression;
-            const accessChain = parseAccessChain(state, binaryExpr.left);
-            assignments.push({
-                type: 'assignment',
-                token: binaryExpr.operatorToken,
-                value: binaryExpr.right,
-                accessChain, statement
-            });
-        }
-    });
-    return assignments;
+    const binaryExpr = statement.expression;
+    const accessChain = parseAccessChain(state, binaryExpr.left);
+    return {
+        type: 'assignment',
+        token: binaryExpr.operatorToken,
+        value: binaryExpr.right,
+        accessChain, statement
+    };
 }
 
-function getArrayOpsInStatements(state: TransformState, statements: ts.Statement[]) {
-    const arrayOps: ArrayOperation[] = [];
+function getArrayOpsFromStatement(state: TransformState, statement: ts.Statement): Mutation | null {
+    if (!ts.isExpressionStatement(statement)) return null;
 
-    statements.forEach(statement => {
-        if (!ts.isExpressionStatement(statement)) return;
-        statement.forEachChild(child => {
-            if (!ts.isCallExpression(child)) return;
-            if (!ts.isPropertyAccessExpression(child.expression)) return;
-            const propAccessExpr = child.expression;
-            const funcName = propAccessExpr.name.getText();
-            if (supportedArrayOps.includes(funcName)) {
-                const accessChain = parseAccessChain(state, propAccessExpr);
-                accessChain.pop(); // Remove the name of the function
-                arrayOps.push({
-                    type: 'arrayOp',
-                    addToStart: funcName === 'unshift' ? child.arguments.map(arg => arg) : [],
-                    addToEnd: funcName === 'push' ? child.arguments.map(arg => arg) : [],
-                    removeFromStart: funcName === 'shift' ? 1 : 0,
-                    removeFromEnd: funcName === 'pop' ? 1 : 0,
-                    accessChain,
-                    statement
-                });
-            }
-        });
-    });
-    return arrayOps;
+    const expression = statement.expression;
+    if (!ts.isCallExpression(expression)) return null;
+    if (!ts.isPropertyAccessExpression(expression.expression)) return null;
+    const propAccessExpr = expression.expression;
+    const funcName = propAccessExpr.name.getText();
+    if (!supportedArrayOps.includes(funcName)) return null;
+
+    const accessChain = parseAccessChain(state, propAccessExpr);
+    accessChain.pop(); // Remove the name of the function
+    return {
+        type: 'arrayOp',
+        addToStart: funcName === 'unshift' ? expression.arguments.map(arg => arg) : [],
+        addToEnd: funcName === 'push' ? expression.arguments.map(arg => arg) : [],
+        removeFromStart: funcName === 'shift' ? 1 : 0,
+        removeFromEnd: funcName === 'pop' ? 1 : 0,
+        accessChain,
+        statement
+    };
 }
 
-function getDeleteOperations(state: TransformState, statements: ts.Statement[]) {
-    const deletes: DeleteOperation[] = [];
-    statements.forEach(statement => {
-        if (!ts.isExpressionStatement(statement)) return;
-        statement.forEachChild(child => {
-            if (!ts.isDeleteExpression(child)) return;
-            const propAccessExpr = child.expression;
-            deletes.push({
-                type: 'delete',
-                accessChain: parseAccessChain(state, propAccessExpr),
-                statement
-            });
-        });
-    });
-    return deletes;
+function getDeleteOpFromStatement(state: TransformState, statement: ts.Statement): Mutation | null {
+    if (!ts.isExpressionStatement(statement)) return null;
+    const expression = statement.expression;
+    if (!ts.isDeleteExpression(expression)) return null;
+    return {
+        type: 'delete',
+        accessChain: parseAccessChain(state, expression.expression),
+        statement
+    };
 }
 
-function getUnaryOperations(state: TransformState, statements: ts.Statement[]) {
+function getUnaryOpFromStatement(state: TransformState, statement: ts.Statement): Mutation | null {
+    if (!ts.isExpressionStatement(statement)) return null;
+    const expression = statement.expression;
+    if (!ts.isPrefixUnaryExpression(expression) && !ts.isPostfixUnaryExpression(expression)) return null;
+    if (expression.operator !== ts.SyntaxKind.PlusPlusToken && expression.operator !== ts.SyntaxKind.MinusMinusToken) return null;
+
     const { factory } = state.ctx;
-    const unaryOps: Assignment[] = [];
-    statements.forEach(statement => {
-        if (!ts.isExpressionStatement(statement)) return;
-        statement.forEachChild(child => {
-            if (ts.isPrefixUnaryExpression(child) || ts.isPostfixUnaryExpression(child)) {
-                if (child.operator === ts.SyntaxKind.PlusPlusToken || child.operator === ts.SyntaxKind.MinusMinusToken) {
-                    const assignment = (child.operator === ts.SyntaxKind.PlusPlusToken) ? 
-                        factory.createAdd(child.operand, factory.createNumericLiteral(1)) : factory.createSubtract(child.operand, factory.createNumericLiteral(1));
-
-                    unaryOps.push({
-                        type: 'assignment',
-                        token: factory.createToken(ts.SyntaxKind.EqualsToken),
-                        value: assignment,
-                        accessChain: parseAccessChain(state, child.operand),
-                        statement
-                    });
-                }
-            }
-        });
-    });
-    return unaryOps;
+    const assignment = (expression.operator === ts.SyntaxKind.PlusPlusToken) ? 
+        factory.createAdd(expression.operand, factory.createNumericLiteral(1)) : factory.createSubtract(expression.operand, factory.createNumericLiteral(1));
+    return {
+        type: 'assignment',
+        token: factory.createToken(ts.SyntaxKind.EqualsToken),
+        value: assignment,
+        accessChain: parseAccessChain(state, expression.operand),
+        statement
+    };
 }
 
 function buildObjTree(mutations: Mutation[]): ObjTreeNode {
@@ -363,8 +339,8 @@ function buildObjTree(mutations: Mutation[]): ObjTreeNode {
                 };
                 currentNode.children.push(childNode);
             }
-            else if (isLast) {
-                if (isArrayOperation(childNode.mutation) && isArrayOperation(mutation)) {
+            else if (isLast && childNode.mutation && mutation) {
+                if (childNode.mutation.type === 'arrayOp' && mutation.type === 'arrayOp') {
                     childNode.mutation = mergeArrayOperations(childNode.mutation, mutation);
                 }
             }
@@ -513,7 +489,7 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                     throw Error('Unsupported assignment token ' + objTree.mutation.token.kind);
             }
         }
-        else if (isArrayOperation(objTree?.mutation)) {
+        else if (objTree?.mutation?.type === 'arrayOp') {
             exprValue = ctx.factory.createArrayLiteralExpression([
                 ...(objTree.mutation.addToStart),
                 ctx.factory.createSpreadElement(
@@ -646,10 +622,6 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             )
         );
     }
-}
-
-function isArrayOperation(mutation?: Mutation): mutation is ArrayOperation {
-    return mutation?.type === 'arrayOp';
 }
 
 function mergeArrayOperations(first: ArrayOperation, second: ArrayOperation): Mutation {
