@@ -2,7 +2,7 @@ import * as ts from 'typescript';
 import { isPropAccessEqual, parseAccessChain, PropAccess, propAccessToStr } from './prop-access';
 import { assertExhaustive, isAssignment, isExpression, strKind, TransformState } from './util';
 import { removeLocalVariables } from './remove-locals';
-import { updateForInBody, updateForLoopBody, updateForOfBody } from './ast';
+import { createNullishCoallescingOperator, updateForInBody, updateForLoopBody, updateForOfBody } from './ast';
 
 interface BaseMutation {
     statement: ts.Statement;
@@ -334,14 +334,26 @@ function buildObjTree(mutations: Mutation[]): ObjTreeNode {
                 childNode = {
                     name: propAccess,
                     children: [],
-                    path: [...currentNode.path, propAccess],
-                    ...(isLast ? { mutation } : {})
-                };
+                    path: [...currentNode.path, propAccess]
+                }
+                if (isLast) {
+                    if (mutation.type === 'assignment' && mutation.token.kind !== ts.SyntaxKind.EqualsToken) {
+                        mutation = {
+                            ...mutation,
+                            token: ts.factory.createToken(ts.SyntaxKind.EqualsToken),
+                            value: getCreateFunctionForToken(mutation.token)(createChainedPropertyExpr(childNode.path), mutation.value)
+                        }
+                    }
+                    childNode = { ...childNode, mutation };
+                }
                 currentNode.children.push(childNode);
             }
             else if (isLast && childNode.mutation && mutation) {
                 if (childNode.mutation.type === 'arrayOp' && mutation.type === 'arrayOp') {
                     childNode.mutation = mergeArrayOperations(childNode.mutation, mutation);
+                }
+                else if (childNode.mutation.type === 'assignment' && mutation.type === 'assignment') {
+                    childNode.mutation = mergeAssignmentOperations(childNode.mutation, mutation);
                 }
             }
             currentNode = childNode;
@@ -365,7 +377,7 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                     [
                         ctx.factory.createArrayLiteralExpression([
                             ctx.factory.createSpreadElement(
-                                createChainedPropertyExpr(ctx, objTree.path)
+                                createChainedPropertyExpr(objTree.path)
                             )
                         ]),
                         ctx.factory.createObjectLiteralExpression(
@@ -390,33 +402,10 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
     else {
         let exprValue: ts.Expression | undefined;
         if (objTree.mutation?.type === 'assignment') {
-            const tokenToCreateFunc = new Map<ts.SyntaxKind, (lhs: ts.Expression, rhs: ts.Expression) => ts.BinaryExpression>()
-                .set(ts.SyntaxKind.PlusEqualsToken,      ctx.factory.createAdd)
-                .set(ts.SyntaxKind.MinusEqualsToken,     ctx.factory.createSubtract)
-                .set(ts.SyntaxKind.AsteriskEqualsToken,  ctx.factory.createMultiply)
-                .set(ts.SyntaxKind.SlashEqualsToken,     ctx.factory.createDivide)
-                .set(ts.SyntaxKind.PercentEqualsToken,   ctx.factory.createModulo)
-                .set(ts.SyntaxKind.AmpersandEqualsToken, ctx.factory.createBitwiseAnd)
-                .set(ts.SyntaxKind.BarEqualsToken,       ctx.factory.createBitwiseOr)
-                .set(ts.SyntaxKind.CaretEqualsToken,     ctx.factory.createBitwiseXor)
-                .set(ts.SyntaxKind.BarBarEqualsToken,    ctx.factory.createLogicalOr)
-                .set(ts.SyntaxKind.AmpersandAmpersandEqualsToken,                ctx.factory.createLogicalAnd)
-                .set(ts.SyntaxKind.AsteriskAsteriskEqualsToken,                  ctx.factory.createExponent)
-                .set(ts.SyntaxKind.LessThanLessThanEqualsToken,                  ctx.factory.createLeftShift)
-                .set(ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,            ctx.factory.createRightShift)
-                .set(ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken, ctx.factory.createUnsignedRightShift)
-                .set(ts.SyntaxKind.QuestionQuestionEqualsToken,
-                    (lhs, rhs) => ctx.factory.createBinaryExpression(
-                        lhs, ctx.factory.createToken(ts.SyntaxKind.QuestionQuestionToken), rhs
-                    )
-                );
-
-            if (objTree.mutation.token.kind === ts.SyntaxKind.EqualsToken) {
-                exprValue = objTree.mutation.value;
+            if (objTree.mutation.token.kind !== ts.SyntaxKind.EqualsToken) {
+                throw Error('Expected assignment to have been converted to = operator by now. Found: ' + strKind(objTree.mutation.token));
             }
-            else {
-                exprValue = tokenToCreateFunc.get(objTree.mutation.token.kind)?.(createChainedPropertyExpr(ctx, objTree.path), objTree.mutation.value);
-            }
+            exprValue = objTree.mutation.value;
             if (!exprValue) throw Error('Unsupported assignment token ' + objTree.mutation.token.kind);
         }
         else if (objTree?.mutation?.type === 'arrayOp') {
@@ -424,18 +413,18 @@ function convertObjTree(state: TransformState, objTree: ObjTreeNode): ts.Propert
                 ...(objTree.mutation.addToStart),
                 ctx.factory.createSpreadElement(
                     (objTree.mutation.removeFromEnd + objTree.mutation.removeFromStart === 0) ?
-                        createChainedPropertyExpr(ctx, objTree.path)
+                        createChainedPropertyExpr(objTree.path)
                         :
                         ctx.factory.createCallExpression(
                             ctx.factory.createPropertyAccessExpression(
-                                createChainedPropertyExpr(ctx, objTree.path), 'slice'
+                                createChainedPropertyExpr(objTree.path), 'slice'
                             ),
                             [],
                             [
                                 ctx.factory.createNumericLiteral(objTree.mutation.removeFromStart),
                                 ctx.factory.createSubtract(
                                     ctx.factory.createPropertyAccessExpression(
-                                        createChainedPropertyExpr(ctx, objTree.path), 'length'
+                                        createChainedPropertyExpr(objTree.path), 'length'
                                     ),
                                     ctx.factory.createNumericLiteral(objTree.mutation.removeFromEnd)
                                 )
@@ -470,22 +459,22 @@ function isArrayType(exprType: ts.Type) {
 }
 
 // Create an expression such as x.y.z
-function createChainedPropertyExpr(ctx: ts.TransformationContext, accessChain: PropAccess[]): ts.Expression {
+function createChainedPropertyExpr(accessChain: PropAccess[]): ts.Expression {
     if (accessChain.length === 1) {
         if (accessChain[0].type === 'member') {
-            return ctx.factory.createIdentifier(accessChain[0].member.text);
+            return ts.factory.createIdentifier(accessChain[0].member.text);
         }
         throw Error("Don't believe this is possible...");
     }
     const lastElem = accessChain[accessChain.length - 1];
     if (lastElem.type === 'member') {
-        return ctx.factory.createPropertyAccessExpression(
-            createChainedPropertyExpr(ctx, accessChain.slice(0, -1)), lastElem.member.text
+        return ts.factory.createPropertyAccessExpression(
+            createChainedPropertyExpr(accessChain.slice(0, -1)), lastElem.member.text
         );
     }
     else if (lastElem.type === 'dynamic') {
-        return ctx.factory.createElementAccessExpression(
-            createChainedPropertyExpr(ctx, accessChain.slice(0, -1)), lastElem.expr
+        return ts.factory.createElementAccessExpression(
+            createChainedPropertyExpr(accessChain.slice(0, -1)), lastElem.expr
         );
     }
     return assertExhaustive(lastElem);
@@ -516,7 +505,7 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
     const deletes = objTree.children.filter(child => child.children.length === 0 && child.mutation?.type === 'delete');
     if (deletes.length === 0) {
         return ctx.factory.createSpreadAssignment(
-            createChainedPropertyExpr(ctx, objTree.path)
+            createChainedPropertyExpr(objTree.path)
         );
     }
     else {
@@ -535,7 +524,7 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
                         )
                     ]),
                     undefined, undefined,
-                    createChainedPropertyExpr(ctx, objTree.path)
+                    createChainedPropertyExpr(objTree.path)
                 )
             ]),
             ctx.factory.createReturnStatement(ctx.factory.createIdentifier('rest'))
@@ -552,6 +541,28 @@ function createObjSpread(state: TransformState, objTree: ObjTreeNode) {
             )
         );
     }
+}
+
+function getCreateFunctionForToken(token: ts.AssignmentOperatorToken) {
+    switch (token.kind) {
+        case ts.SyntaxKind.PlusEqualsToken: return ts.factory.createAdd;
+        case ts.SyntaxKind.MinusEqualsToken: return ts.factory.createSubtract;
+        case ts.SyntaxKind.AsteriskEqualsToken: return ts.factory.createMultiply;
+        case ts.SyntaxKind.SlashEqualsToken: return ts.factory.createDivide;
+        case ts.SyntaxKind.PercentEqualsToken: return ts.factory.createModulo;
+        case ts.SyntaxKind.AmpersandEqualsToken: return ts.factory.createBitwiseAnd;
+        case ts.SyntaxKind.BarEqualsToken: return ts.factory.createBitwiseOr;
+        case ts.SyntaxKind.CaretEqualsToken: return ts.factory.createBitwiseXor;
+        case ts.SyntaxKind.BarBarEqualsToken: return ts.factory.createLogicalOr;
+        case ts.SyntaxKind.AmpersandAmpersandEqualsToken: return ts.factory.createLogicalAnd;
+        case ts.SyntaxKind.AsteriskAsteriskEqualsToken: return ts.factory.createExponent;
+        case ts.SyntaxKind.LessThanLessThanEqualsToken: return ts.factory.createLeftShift;
+        case ts.SyntaxKind.GreaterThanGreaterThanEqualsToken: return ts.factory.createRightShift;
+        case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken: return ts.factory.createUnsignedRightShift;
+        case ts.SyntaxKind.QuestionQuestionEqualsToken: return createNullishCoallescingOperator;
+        default: 
+            throw Error("No function found for token " + strKind(token));
+    };
 }
 
 function mergeArrayOperations(first: ArrayOperation, second: ArrayOperation): Mutation {
@@ -588,4 +599,16 @@ function mergeArrayOperations(first: ArrayOperation, second: ArrayOperation): Mu
         removeFromEnd,
         removeFromStart
     };
+}
+
+function mergeAssignmentOperations(first: Assignment, second: Assignment): Mutation {
+    if (second.token.kind === ts.SyntaxKind.EqualsToken) {
+        return second;
+    }
+    const create = getCreateFunctionForToken(second.token);
+    return {
+        ...first,
+        token: ts.factory.createToken(ts.SyntaxKind.EqualsToken),
+        value: create(ts.factory.createParenthesizedExpression(first.value), second.value)
+    }
 }

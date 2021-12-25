@@ -22,3 +22,9 @@ export function updateForOfBody(factory: ts.NodeFactory, node: ts.ForOfStatement
         node, node.awaitModifier, node.initializer, node.expression, newBody
     );
 }
+
+export function createNullishCoallescingOperator(left: ts.Expression, right: ts.Expression): ts.BinaryExpression {
+    return ts.factory.createBinaryExpression(
+        left, ts.factory.createToken(ts.SyntaxKind.QuestionQuestionToken), right
+    )
+}

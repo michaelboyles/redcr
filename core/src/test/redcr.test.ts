@@ -750,6 +750,194 @@ describe('Unary operators', () => {
             expect(oldState).toEqual({ num: 1 });
         });
     });
+
+    // test('', () => {
+    //     const reducer = redcr((state: NumberState) => {
+    //         state.num++;
+    //         state.num = (state.num + 2);
+    //     });
+
+    //     const oldState: NumberState = { num: 1 };
+    //     const newState = reducer(oldState);
+    
+    //     expect(newState).toEqual({ num: 4 });
+    //     expect(oldState).toEqual({ num: 1 });
+    // });
+
+    // test('Foo', () => {
+    //     const reducer = redcr((state: NumberState) => {
+    //         state.num++;
+    //         state.num--;
+    //     });
+
+    //     const oldState: NumberState = { num: 1 };
+    //     const newState = reducer(oldState);
+    
+    //     expect(newState).toEqual({ num: 1 });
+    //     expect(oldState).toEqual({ num: 1 });
+    // });
+
+    // test('Foo', () => {
+    //     const reducer = redcr((state: NumberState) => {
+    //         state.num++;
+    //         state.num++;
+    //     });
+
+    //     const oldState: NumberState = { num: 1 };
+    //     const newState = reducer(oldState);
+    
+    //     expect(newState).toEqual({ num: 3 });
+    //     expect(oldState).toEqual({ num: 1 });
+    // });
+
+    // test('Foo', () => {
+    //     const reducer = redcr((state: NumberState) => {
+    //         state.num += 2;
+    //         state.num++;
+    //     });
+
+    //     const oldState: NumberState = { num: 1 };
+    //     const newState = reducer(oldState);
+    
+    //     expect(newState).toEqual({ num: 4 });
+    //     expect(oldState).toEqual({ num: 1 });
+    // });
+
+    // test('Foo', () => {
+    //     const two = 2;
+    //     const reducer = redcr((state: NumberState) => {
+    //         state.num += two;
+    //         state.num++;
+    //     });
+
+    //     const oldState: NumberState = { num: 1 };
+    //     const newState = reducer(oldState);
+    
+    //     expect(newState).toEqual({ num: 4 });
+    //     expect(oldState).toEqual({ num: 1 });
+    // });
+});
+
+describe('Operator combining', () => {
+    xtest('Increment three times', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num++;
+            state.num++;
+            state.num++;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 4 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    test('Increment then assign', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num++;
+            state.num = 9;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 9 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    xtest('Increment then assign with self-reference', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num++;
+            state.num = state.num + 1;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 3 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    test('Increment then accumulate', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num++;
+            state.num += 2;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 4 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    xtest('Decrement three times', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num--;
+            state.num--;
+            state.num--;
+        });
+
+        const oldState: NumberState = { num: 4 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 4 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    test('Accumulate then divide', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num += 5;
+            state.num /= 2;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 3 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    test('Multiply then divide', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num *= 3;
+            state.num /= 2;
+        });
+
+        const oldState: NumberState = { num: 6 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 9 });
+        expect(oldState).toEqual({ num: 6 });
+    });
+
+    test('Multiply then assign', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num *= 3;
+            state.num = 2;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 2 });
+        expect(oldState).toEqual({ num: 1 });
+    });
+
+    test('Multiply three times', () => {
+        const reducer = redcr((state: NumberState) => {
+            state.num *= 2;
+            state.num *= 3;
+            state.num *= 4;
+        });
+
+        const oldState: NumberState = { num: 1 };
+        const newState = reducer(oldState);
+    
+        expect(newState).toEqual({ num: 24 });
+        expect(oldState).toEqual({ num: 1 });
+    });
 });
 
 describe('For-loops', () => {
@@ -1007,6 +1195,19 @@ describe('Assignment operators', () => {
         
             expect(newState).toEqual({ str: 'new' });
             expect(oldState).toEqual({ str: 'old' });
+        });
+
+        test('Assignment with self-reference', () => {
+            const reducer = redcr((state: NumberState) => {
+                // state.num++ would be less verbose but this should still work
+                state.num = state.num + 1;
+            });
+    
+            const oldState: NumberState = { num: 1 };
+            const newState = reducer(oldState);
+        
+            expect(newState).toEqual({ num: 2 });
+            expect(oldState).toEqual({ num: 1 });
         });
     });
     
