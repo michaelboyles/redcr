@@ -1,4 +1,4 @@
-import { redcr } from "..";
+import { redcr, Reducer } from "..";
 
 interface StringState {
     str: string
@@ -31,6 +31,13 @@ interface DoubleNestedObjectState {
     }
 }
 
+function testReducer<T>(reducer: Reducer<T, any>, oldState: T, newExpectedState: T) {
+    const oldStateCopy = Object.freeze({...oldState});
+    const newState = reducer(oldState, undefined) as unknown as T;
+    expect(newState).toEqual(newExpectedState);
+    expect(oldState).toEqual(oldStateCopy);
+}
+
 describe('Redcr invocations', () => {
     test('Reducer with action', () => {
         interface Action {
@@ -47,24 +54,14 @@ describe('Redcr invocations', () => {
 
     test('Arrow function with expression body', () => {
         const reducer = redcr((state: StringState) => state.str = 'new');
-    
-        const oldState: StringState = {str: 'old'};
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({str: 'new'});
-        expect(oldState).toEqual({str: 'old'});
+        testReducer(reducer, {str: 'old'}, {str: 'new'});
     });
 
     test('Reducer is an anonymous function', () => {
         const reducer = redcr(function(state: OptionalStringState) {
             state.str = 'new';
         });
-    
-        const oldState: OptionalStringState = {};
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({str: 'new'});
-        expect(oldState).toEqual({});
+        testReducer(reducer, {}, {str: 'new'});
     });    
 });
 
@@ -77,58 +74,33 @@ describe('Arrays', () => {
             const reducer = redcr((state: State) => {
                 state.arr.push(1, 2, 3);
             });
-        
-            const oldState: State = {arr: [0]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 1, 2, 3]});
-            expect(oldState).toEqual({arr: [0]});
+            testReducer(reducer, {arr: [0]}, {arr: [0, 1, 2, 3]});
         });
         
         test('Array pop', () => {
             const reducer = redcr((state: NumberArrayState) => {
                 state.arr.pop();
             });
-        
-            const oldState: NumberArrayState = {arr: [0, 1, 2]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 1]});
-            expect(oldState).toEqual({arr: [0, 1, 2]});
+            testReducer(reducer, {arr: [0, 1, 2]}, {arr: [0, 1]});
         });
         
         test('Array pop as expression arrow function', () => {
             const reducer = redcr((state: NumberArrayState) => state.arr.pop());
-        
-            const oldState: NumberArrayState = {arr: [0, 1, 2]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 1]});
-            expect(oldState).toEqual({arr: [0, 1, 2]});
+            testReducer(reducer, {arr: [0, 1, 2]}, {arr: [0, 1]});
         });
         
         test('Array shift', () => {
             const reducer = redcr((state: NumberArrayState) => {
                 state.arr.shift();
             });
-        
-            const oldState: NumberArrayState = {arr: [0, 1, 2]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [1, 2]});
-            expect(oldState).toEqual({arr: [0, 1, 2]});
+            testReducer(reducer, {arr: [0, 1, 2]}, {arr: [1, 2]});
         });
         
         test('Array unshift', () => {
             const reducer = redcr((state: NumberArrayState) => {
                 state.arr.unshift(0, 1);
             });
-        
-            const oldState: NumberArrayState = {arr: [2, 3]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 1, 2, 3]});
-            expect(oldState).toEqual({arr: [2, 3]});
+            testReducer(reducer, {arr: [2, 3]}, {arr: [0, 1, 2, 3]});
         });
 
         test('Array operation on array element', () => {
@@ -139,14 +111,11 @@ describe('Arrays', () => {
             const reducer = redcr((state: State) => {
                 state.arr[1].push('d');
             });
-
-            const oldState: State = {
-                arr: [['a', 'b'], ['c']]
-            };
-            const newState = reducer(oldState);
-
-            expect(newState).toEqual({arr: [['a', 'b'], ['c', 'd']]});
-            expect(oldState).toEqual({arr: [['a', 'b'], ['c']]});
+            testReducer(
+                reducer,
+                { arr: [['a', 'b'], ['c']] },
+                { arr: [['a', 'b'], ['c', 'd']]}
+            );
         });
 
         describe('Combinations', () => {
@@ -155,11 +124,7 @@ describe('Arrays', () => {
                     state.arr.push(2, 3);
                     state.arr.push(4);
                 });
-                const oldState: NumberArrayState = { arr: [1] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1, 2, 3, 4] });
-                expect(oldState).toEqual({ arr: [1] });
+                testReducer(reducer, { arr: [1] }, { arr: [1, 2, 3, 4] });
             });
             
             test('Consecutive array pops', () => {
@@ -167,11 +132,7 @@ describe('Arrays', () => {
                     state.arr.pop();
                     state.arr.pop();
                 });
-                const oldState: NumberArrayState = { arr: [1, 2, 3] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1] });
-                expect(oldState).toEqual({ arr: [1, 2, 3] });
+                testReducer(reducer, { arr: [1, 2, 3] }, { arr: [1] });
             });
             
             test('Consecutive array shifts', () => {
@@ -179,11 +140,7 @@ describe('Arrays', () => {
                     state.arr.shift();
                     state.arr.shift();
                 });
-                const oldState: NumberArrayState = { arr: [1, 2, 3] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [3] });
-                expect(oldState).toEqual({ arr: [1, 2, 3] });
+                testReducer(reducer, { arr: [1, 2, 3] }, { arr: [3] });
             });
             
             test('Consecutive array unshifts', () => {
@@ -191,11 +148,7 @@ describe('Arrays', () => {
                     state.arr.unshift(2, 3);
                     state.arr.unshift(1);
                 });
-                const oldState: NumberArrayState = { arr: [4] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1, 2, 3, 4] });
-                expect(oldState).toEqual({ arr: [4] });
+                testReducer(reducer, { arr: [4] }, { arr: [1, 2, 3, 4] });
             });
             
             test('Array unshift then array push', () => {
@@ -203,11 +156,7 @@ describe('Arrays', () => {
                     state.arr.unshift(1);
                     state.arr.push(3);
                 });
-                const oldState: NumberArrayState = { arr: [2] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1, 2, 3] });
-                expect(oldState).toEqual({ arr: [2] });
+                testReducer(reducer, { arr: [2] }, { arr: [1, 2, 3] });
             });
             
             test('Array shift then array pop', () => {
@@ -215,11 +164,7 @@ describe('Arrays', () => {
                     state.arr.shift();
                     state.arr.pop();
                 });
-                const oldState: NumberArrayState = { arr: [1, 2, 3] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [2] });
-                expect(oldState).toEqual({ arr: [1, 2, 3] });
+                testReducer(reducer, { arr: [1, 2, 3] }, { arr: [2] });
             });
             
             test('Inverse operations result in no-op, appending to end', () => {
@@ -227,11 +172,7 @@ describe('Arrays', () => {
                     state.arr.push(4);
                     state.arr.pop();
                 });
-                const oldState: NumberArrayState = { arr: [1, 2, 3] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1, 2, 3] });
-                expect(oldState).toEqual({ arr: [1, 2, 3] });
+                testReducer(reducer, { arr: [1, 2, 3] }, { arr: [1, 2, 3] });
             });
             
             test('Inverse operations result in no-op, appending to start', () => {
@@ -239,11 +180,7 @@ describe('Arrays', () => {
                     state.arr.unshift(1);
                     state.arr.shift();
                 });
-                const oldState: NumberArrayState = { arr: [2, 3, 4] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [2, 3, 4] });
-                expect(oldState).toEqual({ arr: [2, 3, 4] });
+                testReducer(reducer, { arr: [2, 3, 4] }, { arr: [2, 3, 4] });
             });
             
             test('Pushing multiple elements then popping partially undoes the push', () => {
@@ -251,11 +188,7 @@ describe('Arrays', () => {
                     state.arr.push(4, 5);
                     state.arr.pop();
                 });
-                const oldState: NumberArrayState = { arr: [1, 2, 3] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [1, 2, 3, 4] });
-                expect(oldState).toEqual({ arr: [1, 2, 3] });
+                testReducer(reducer, { arr: [1, 2, 3] }, { arr: [1, 2, 3, 4] });
             });
             
             test('Unshifting multiple elements then shifting partially undoes the unshift', () => {
@@ -263,11 +196,7 @@ describe('Arrays', () => {
                     state.arr.unshift(1, 2, 3);
                     state.arr.shift();
                 });
-                const oldState: NumberArrayState = { arr: [4, 5] };
-                const newState = reducer(oldState);
-            
-                expect(newState).toEqual({ arr: [2, 3, 4, 5] });
-                expect(oldState).toEqual({ arr: [4, 5] });
+                testReducer(reducer, { arr: [4, 5] }, { arr: [2, 3, 4, 5] });
             });
         });
     });
@@ -275,25 +204,19 @@ describe('Arrays', () => {
     describe('Access by index', () => {
         test('Assign to arbitary array index', () => {
             const reducer = redcr((state: NumberArrayState) => state.arr[1] = 999);
-        
-            const oldState: NumberArrayState = {arr: [0, 1, 2]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 999, 2]});
-            expect(oldState).toEqual({arr: [0, 1, 2]});
+            testReducer(reducer, {arr: [0, 1, 2]}, {arr: [0, 999, 2]});
         });
         
         test('Assign to multiple array indices', () => {
-            const reducer = redcr((state: NumberArrayState) => {
+            interface OptionalNumberArrayState {
+                arr: (number | undefined)[];
+            }
+
+            const reducer = redcr((state: OptionalNumberArrayState) => {
                 state.arr[1] = 888;
                 state.arr[6] = 999;
             });
-        
-            const oldState: NumberArrayState = {arr: [0, 1, 2]};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [0, 888, 2, , , , 999]});
-            expect(oldState).toEqual({arr: [0, 1, 2]});
+            testReducer(reducer, {arr: [0, 1, 2]}, {arr: [0, 888, 2, , , , 999]});
         });        
     });
 });
@@ -301,22 +224,12 @@ describe('Arrays', () => {
 describe('Delete operator', () => {
     test('Delete field', () => {
         const reducer = redcr((state: OptionalStringState) => delete state.str);
-    
-        const oldState: OptionalStringState = {str: 'old'};
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({});
-        expect(oldState).toEqual({str: 'old'});
+        testReducer(reducer, {str: 'old'}, {});
     });
     
     test('Dynamic field delete', () => {
         const reducer = redcr((state: OptionalStringState) => delete state['str']);
-    
-        const oldState: OptionalStringState = {str: 'old'};
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({});
-        expect(oldState).toEqual({str: 'old'});
+        testReducer(reducer, {str: 'old'}, {});
     });
     
     test('Delete two properties of object', () => {
@@ -324,11 +237,7 @@ describe('Delete operator', () => {
             delete state.first;
             delete state.second;
         });
-        const oldState: TwoOptionalNumberState = { first: 1, second: 2 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({});
-        expect(oldState).toEqual({ first: 1, second: 2 });
+        testReducer(reducer, { first: 1, second: 2 }, {});
     });
     
     test('Delete two properties of object dynamically', () => {
@@ -336,11 +245,7 @@ describe('Delete operator', () => {
             delete state['first'];
             delete state['second'];
         });
-        const oldState: TwoOptionalNumberState = { first: 1, second: 2 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({});
-        expect(oldState).toEqual({ first: 1, second: 2 });
+        testReducer(reducer, { first: 1, second: 2 }, {});
     });
 });
 
@@ -417,12 +322,7 @@ describe('Conditions', () => {
                     state.str = 'condition was false'
                 }
             });
-        
-            const oldState: OptionalStringState = {};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: 'condition was false'});
-            expect(oldState).toEqual({});
+            testReducer(reducer, {}, {str: 'condition was false'});
         });
         
         test('Assignment inside and outside of if', () => {
@@ -434,12 +334,7 @@ describe('Conditions', () => {
                     state.second = 444;
                 }
             });
-        
-            const oldState: TwoNumberState = {first: 111, second: 222};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({first: 333, second: 444});
-            expect(oldState).toEqual({first: 111, second: 222});
+            testReducer(reducer, {first: 111, second: 222}, {first: 333, second: 444});
         });
 
         test('Local variable used in condition', () => {
@@ -449,11 +344,7 @@ describe('Conditions', () => {
                     state.str = 'new';
                 }
             });
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'new' });
         });
     });
 
@@ -470,11 +361,7 @@ describe('Conditions', () => {
                         break;
                 }
             });
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'one' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'one' });
         });
         
         test('Switch with fallthrough', () => {
@@ -487,11 +374,7 @@ describe('Conditions', () => {
                         break;
                 }
             });
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'one or two' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'one or two' });
         });
         
         test('Switch with default', () => {
@@ -505,11 +388,7 @@ describe('Conditions', () => {
                         state.str = 'not one'
                 }
             });
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'not one' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'not one' });
         });
         
         test('Switch with an if-statement containing a break statement', () => {
@@ -531,11 +410,7 @@ describe('Conditions', () => {
                         state.str = 'not one or two'
                 }
             });
-            const oldState: StringState = { str: '' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'aaabbb' });
-            expect(oldState).toEqual({ str: '' });
+            testReducer(reducer, { str: '' }, { str: 'aaabbb' });
         });
     });
 });
@@ -546,12 +421,7 @@ describe('Destructuring', () => {
             const { child } = state;
             child.str = 'new';
         });
-    
-        const oldState: NestedObjectState = { child: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ child: { str: 'new' } });
-        expect(oldState).toEqual({ child: { str: 'old' } });
+        testReducer(reducer, { child: { str: 'old' } }, { child: { str: 'new' } });
     });
     
     test('Destructured assignment with different identifier', () => {
@@ -559,12 +429,7 @@ describe('Destructuring', () => {
             const { child: foo } = state;
             foo.str = 'new';
         });
-    
-        const oldState: NestedObjectState = { child: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ child: { str: 'new' } });
-        expect(oldState).toEqual({ child: { str: 'old' } });
+        testReducer(reducer, { child: { str: 'old' } }, { child: { str: 'new' } });
     });
     
     test('Two levels of destructuring with assignment', () => {
@@ -572,12 +437,11 @@ describe('Destructuring', () => {
             const { one: { two } } = state;
             two.str = 'new';
         });
-    
-        const oldState: DoubleNestedObjectState = { one: { two: { str: 'old' } } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ one: { two: { str: 'new' } } });
-        expect(oldState).toEqual({ one: { two: { str: 'old' } } });
+        testReducer(
+            reducer,
+            { one: { two: { str: 'old' } } },
+            { one: { two: { str: 'new' } } }
+        );
     });
     
     test('Two levels of destructuring with assignment and alternate identifier', () => {
@@ -585,12 +449,11 @@ describe('Destructuring', () => {
             const { one: { two: foo } } = state;
             foo.str = 'new';
         });
-    
-        const oldState: DoubleNestedObjectState = { one: { two: { str: 'old' } } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ one: { two: { str: 'new' } } });
-        expect(oldState).toEqual({ one: { two: { str: 'old' } } });
+        testReducer(
+            reducer,
+            { one: { two: { str: 'old' } } },
+            { one: { two: { str: 'new' } } }
+        );
     });
     
     test('Destructured assignment with string literal', () => {
@@ -598,12 +461,11 @@ describe('Destructuring', () => {
             const { 'child': foo } = state;
             foo.str = 'new';
         });
-    
-        const oldState: NestedObjectState = { child: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ child: { str: 'new' } });
-        expect(oldState).toEqual({ child: { str: 'old' } });
+        testReducer(
+            reducer,
+            { child: { str: 'old' } },
+            { child: { str: 'new' } }
+        );
     });
     
     test('Destructured assignment with number literal', () => {
@@ -615,12 +477,7 @@ describe('Destructuring', () => {
             const { 123: foo } = state;
             foo.str = 'new';
         });
-    
-        const oldState: State = { 123: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ 123: { str: 'new' } });
-        expect(oldState).toEqual({ 123: { str: 'old' } });
+        testReducer(reducer, { 123: { str: 'old' } }, { 123: { str: 'new' } });
     });
     
     test('Destructured assignment with computed property', () => {
@@ -628,12 +485,7 @@ describe('Destructuring', () => {
             const { ['child']: foo } = state;
             foo.str = 'new';
         });
-    
-        const oldState: NestedObjectState = { child: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ child: { str: 'new' } });
-        expect(oldState).toEqual({ child: { str: 'old' } });
+        testReducer(reducer, { child: { str: 'old' } }, { child: { str: 'new' } });
     });
     
     test('Destructured assignment with computed property referencing variable', () => {
@@ -642,12 +494,7 @@ describe('Destructuring', () => {
             const { [field]: foo } = state;
             foo.str = 'new';
         });
-    
-        const oldState: NestedObjectState = { child: { str: 'old' } };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ child: { str: 'new' } });
-        expect(oldState).toEqual({ child: { str: 'old' } });
+        testReducer(reducer, { child: { str: 'old' } }, { child: { str: 'new' } });
     });
 });
 
@@ -655,51 +502,31 @@ describe('Unary operators', () => {
     describe('Prefix', () => {
         test('Prefix increment number as expression arrow function', () => {
             const reducer = redcr((state: NumberState) => ++state.num);
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 2 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 2 });
         });
         
         test('Prefix increment number as block arrow function', () => {
             const reducer = redcr((state: NumberState) => {
                 ++state.num
             });
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 2 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 2 });
         });
         
         test('Prefix decrement number', () => {
             const reducer = redcr((state: NumberState) => --state.num);
-            const oldState: NumberState = { num: 2 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 2 });
+            testReducer(reducer, { num: 2 }, { num: 1 });
         });
     });
 
     describe('Postfix', () => {
         test('Postfix increment number', () => {
             const reducer = redcr((state: NumberState) => state.num++);
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 2 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 2 });
         });
         
         test('Postfix decrement number', () => {
             const reducer = redcr((state: NumberState) => state.num--);
-            const oldState: NumberState = { num: 2 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 2 });
+            testReducer(reducer, { num: 2 }, { num: 1 });
         });
     });
 
@@ -710,44 +537,28 @@ describe('Unary operators', () => {
             const reducer = redcr((state: NumberState) => {
                 !state.num;
             });
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 1 });
         });
 
         test('Tilde', () => {
             const reducer = redcr((state: NumberState) => {
                 ~state.num;
             });
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 1 });
         });
 
         test('Plus', () => {
             const reducer = redcr((state: NumberState) => {
                 +state.num;
             });
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 1 });
         });
 
         test('Minus', () => {
             const reducer = redcr((state: NumberState) => {
                 -state.num;
             });
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 1 });
         });
     });
 
@@ -825,12 +636,7 @@ describe('Operator combining', () => {
             state.num++;
             state.num++;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 4 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 4 });
     });
 
     test('Increment then assign', () => {
@@ -838,12 +644,7 @@ describe('Operator combining', () => {
             state.num++;
             state.num = 9;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 9 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 9 });
     });
 
     xtest('Increment then assign with self-reference', () => {
@@ -851,12 +652,7 @@ describe('Operator combining', () => {
             state.num++;
             state.num = state.num + 1;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 3 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 3 });
     });
 
     test('Increment then accumulate', () => {
@@ -864,12 +660,7 @@ describe('Operator combining', () => {
             state.num++;
             state.num += 2;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 4 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 4 });
     });
 
     xtest('Decrement three times', () => {
@@ -878,12 +669,7 @@ describe('Operator combining', () => {
             state.num--;
             state.num--;
         });
-
-        const oldState: NumberState = { num: 4 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 4 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 4 }, { num: 1 });
     });
 
     test('Accumulate then divide', () => {
@@ -891,12 +677,7 @@ describe('Operator combining', () => {
             state.num += 5;
             state.num /= 2;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 3 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 3 });
     });
 
     test('Multiply then divide', () => {
@@ -904,12 +685,7 @@ describe('Operator combining', () => {
             state.num *= 3;
             state.num /= 2;
         });
-
-        const oldState: NumberState = { num: 6 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 9 });
-        expect(oldState).toEqual({ num: 6 });
+        testReducer(reducer, { num: 6 }, { num: 9 });
     });
 
     test('Multiply then assign', () => {
@@ -917,12 +693,7 @@ describe('Operator combining', () => {
             state.num *= 3;
             state.num = 2;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 2 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 2 });
     });
 
     test('Multiply three times', () => {
@@ -931,12 +702,7 @@ describe('Operator combining', () => {
             state.num *= 3;
             state.num *= 4;
         });
-
-        const oldState: NumberState = { num: 1 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 24 });
-        expect(oldState).toEqual({ num: 1 });
+        testReducer(reducer, { num: 1 }, { num: 24 });
     });
 });
 
@@ -947,11 +713,7 @@ describe('For-loops', () => {
                 state.str += i;
             }
         });
-        const oldState: StringState = { str: '' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: '123' });
-        expect(oldState).toEqual({ str: '' });
+        testReducer(reducer, { str: '' }, { str: '123' });
     });
     
     test('Nested for-loop string concatenation', () => {
@@ -963,11 +725,7 @@ describe('For-loops', () => {
                 state.str += ' ';
             }
         });
-        const oldState: StringState = { str: '' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: '234 345 456 ' });
-        expect(oldState).toEqual({ str: '' });
+        testReducer(reducer, { str: '' }, { str: '234 345 456 ' });
     });
     
     test('For-of-loop string concatenation', () => {
@@ -976,11 +734,7 @@ describe('For-loops', () => {
                 state.str += i;
             }
         });
-        const oldState: StringState = { str: '' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: '123' });
-        expect(oldState).toEqual({ str: '' });
+        testReducer(reducer, { str: '' }, { str: '123' });
     });
     
     test('For-in-loop string concatenation', () => {
@@ -990,11 +744,7 @@ describe('For-loops', () => {
                 state.str += i;
             }
         });
-        const oldState: StringState = { str: '' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: 'abc' });
-        expect(oldState).toEqual({ str: '' });
+        testReducer(reducer, { str: '' }, { str: 'abc' });
     });
 });
 
@@ -1004,11 +754,7 @@ describe('Return statements', () => {
             state.str = 'new';
             return;
         });
-        const oldState: StringState = { str: 'old' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: 'new' });
-        expect(oldState).toEqual({ str: 'old' });
+        testReducer(reducer, { str: 'old' }, { str: 'new' });
     });
     
     test('Conditional return', () => {
@@ -1020,11 +766,7 @@ describe('Return statements', () => {
             }
             state.str = '456';
         });
-        const oldState: StringState = { str: 'old' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: '123' });
-        expect(oldState).toEqual({ str: 'old' });
+        testReducer(reducer, { str: 'old' }, { str: '123' });
     });
     
     test('Dead statements after a return are ignored', () => {
@@ -1032,11 +774,7 @@ describe('Return statements', () => {
             return;
             state.str = 'new';
         });
-        const oldState: StringState = { str: 'old' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: 'old' });
-        expect(oldState).toEqual({ str: 'old' });
+        testReducer(reducer, { str: 'old' }, { str: 'old' });
     });
     
     test('Allow returning explicit state', () => {
@@ -1047,11 +785,7 @@ describe('Return statements', () => {
             }
             state.str = '456';
         });
-        const oldState: StringState = { str: 'old' };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ str: '123' });
-        expect(oldState).toEqual({ str: 'old' });
+        testReducer(reducer, { str: 'old' }, { str: '123' });
     });
 });
 
@@ -1061,36 +795,21 @@ describe('Assignment operators', () => {
             const reducer = redcr((state: StringState) => {
                 state.str = 'new';
             });
-        
-            const oldState: StringState = {str: 'old'};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: 'new'});
-            expect(oldState).toEqual({str: 'old'});
+            testReducer(reducer, {str: 'old'}, {str: 'new'});
         });
         
         test('Non-null assert assignment', () => {
             const reducer = redcr((state: StringState) => {
                 state!.str = 'new';
             });
-        
-            const oldState: StringState = {str: 'old'};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: 'new'});
-            expect(oldState).toEqual({str: 'old'});
+            testReducer(reducer, {str: 'old'}, {str: 'new'});
         });
         
         test('Nested assignment', () => {
             const reducer = redcr((state: NestedObjectState) => {
                 state.child.str = 'new';
             });
-        
-            const oldState: NestedObjectState = {child: {str: 'old' }};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({child: {str: 'new'}});
-            expect(oldState).toEqual({child: {str: 'old'}});
+            testReducer(reducer, {child: {str: 'old' }}, {child: {str: 'new'}});
         });
 
         test('Assignment using local variable', () => {
@@ -1098,32 +817,17 @@ describe('Assignment operators', () => {
                 let msg = 'local variable';
                 state.str = msg;
             });
-        
-            const oldState: OptionalStringState = {};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: 'local variable'});
-            expect(oldState).toEqual({});
+            testReducer(reducer, {}, {str: 'local variable'});
         });
 
         test('Bracket notation property access', () => {
             const reducer = redcr((state: StringState) => state['str'] = 'new');
-        
-            const oldState: StringState = {str: 'old'};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: 'new'});
-            expect(oldState).toEqual({str: 'old'});
+            testReducer(reducer, {str: 'old'}, {str: 'new'});
         });
         
         test('Bracket notation property access in middle of chain', () => {
             const reducer = redcr((state: NestedObjectState) => state['child'].str = 'new');
-        
-            const oldState: NestedObjectState = {child: {str: 'old'}};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({child: {str: 'new'}});
-            expect(oldState).toEqual({child: {str: 'old'}});
+            testReducer(reducer, {child: {str: 'old'}}, {child: {str: 'new'}});
         });
         
         test('Assign to arbitary ID of record', () => {
@@ -1132,12 +836,7 @@ describe('Assignment operators', () => {
             }
             // This looks very close to editing an array but it's not!
             const reducer = redcr((state: State) => state.record[1] = 'abc');
-        
-            const oldState: State = {record: {}};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({record: {'1': 'abc'}});
-            expect(oldState).toEqual({record: {}});
+            testReducer(reducer, {record: {}}, {record: {'1': 'abc'}});
         });
 
         test('Use local variable in assignment', () => {
@@ -1145,14 +844,7 @@ describe('Assignment operators', () => {
                 const tmp = 'new';
                 state.str = tmp;
             });
-        
-            const oldState: StringState = {
-                str: 'old'
-            };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'new' });
         });
         
         test('Initially undefined local variable in assignment', () => {
@@ -1161,12 +853,7 @@ describe('Assignment operators', () => {
                 tmp = 'new';
                 state.str = tmp;
             });
-        
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'new' });
         });
         
         test('Reassign local variable in assignments', () => {
@@ -1176,25 +863,13 @@ describe('Assignment operators', () => {
                 tmp = 44;
                 state.second = tmp;
             });
-        
-            const oldState: TwoNumberState = {
-                first: 88, second: 99
-            };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ first: 33, second: 44 });
-            expect(oldState).toEqual({ first: 88, second: 99 });
+            testReducer(reducer, { first: 88, second: 99 }, { first: 33, second: 44 });
         });
         
         test('Use free variable in assignment', () => {
             const someVar = 'new';
             const reducer = redcr((state: StringState) => state.str = someVar);
-        
-            const oldState: StringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'new' });
         });
 
         test('Assignment with self-reference', () => {
@@ -1202,237 +877,135 @@ describe('Assignment operators', () => {
                 // state.num++ would be less verbose but this should still work
                 state.num = state.num + 1;
             });
-    
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 2 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 2 });
         });
     });
     
     describe('Addition assignment', () => {
         test('Increment number', () => {
             const reducer = redcr((state: NumberState) => state.num += 2);
-            const oldState: NumberState = { num: 0 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 2 });
-            expect(oldState).toEqual({ num: 0 });
+            testReducer(reducer, { num: 0 }, { num: 2 });
         });
 
         test('Increment number array element', () => {
             const reducer = redcr((state: NumberArrayState) => {
                 state.arr[1] += 50;
             });
-        
-            const oldState: NumberArrayState = {
-                arr: [1, 2, 3]
-            };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: [1, 52, 3]});
-            expect(oldState).toEqual({arr: [1, 2, 3]});
+            testReducer(reducer, { arr: [1, 2, 3] }, { arr: [1, 52, 3] });
         });
 
         test('String concatenation', () => {
             const reducer = redcr((state: StringState) => {
                 state.str += '222';
             });
-        
-            const oldState: StringState = {
-                str: '111'
-            };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({str: '111222'});
-            expect(oldState).toEqual({str: '111'});
+            testReducer(reducer, { str: '111' }, { str: '111222' });
         });
         
         test('String concatenation on array element', () => {
             const reducer = redcr((state: StringArrayState) => {
                 state.arr[1] += '222';
             });
-        
-            const oldState: StringArrayState = {
-                arr: ['a', 'b', 'c']
-            };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({arr: ['a', 'b222', 'c']});
-            expect(oldState).toEqual({arr: ['a', 'b', 'c']});
+            testReducer(reducer, { arr: ['a', 'b', 'c'] }, { arr: ['a', 'b222', 'c'] });
         });
     });
 
     test('Subtraction assignment', () => {
         const reducer = redcr((state: NumberState) => state.num -= 2);
-        const oldState: NumberState = { num: 2 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 0 });
-        expect(oldState).toEqual({ num: 2 });
+        testReducer(reducer, { num: 2 }, { num: 0 });
     });
     
     test('Multiplication assignment', () => {
         const reducer = redcr((state: NumberState) => state.num *= 2);
-        const oldState: NumberState = { num: 2 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 4 });
-        expect(oldState).toEqual({ num: 2 });
+        testReducer(reducer, { num: 2 }, { num: 4 });
     });
     
     test('Division assignment', () => {
         const reducer = redcr((state: NumberState) => state.num /= 2);
-        const oldState: NumberState = { num: 4 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 2 });
-        expect(oldState).toEqual({ num: 4 });
+        testReducer(reducer, { num: 4 }, { num: 2 });
     });
     
     test('Remainder assignment', () => {
         const reducer = redcr((state: NumberState) => state.num %= 3);
-        const oldState: NumberState = { num: 10 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 1 });
-        expect(oldState).toEqual({ num: 10 });
+        testReducer(reducer,  { num: 10 },  { num: 1 });
     });
     
     test('Exponentiation assignment', () => {
         const reducer = redcr((state: NumberState) => state.num **= 2);
-        const oldState: NumberState = { num: 10 };
-        const newState = reducer(oldState);
-    
-        expect(newState).toEqual({ num: 100 });
-        expect(oldState).toEqual({ num: 10 });
+        testReducer(reducer, { num: 10 }, { num: 100 });
     });
     
     describe('Bitshifts', () => {
         test('Left shift assignment', () => {
             const reducer = redcr((state: NumberState) => state.num <<= 2);
-            const oldState: NumberState = { num: 0b00100 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0b10000 });
-            expect(oldState).toEqual({ num: 0b00100 });
+            testReducer(reducer, { num: 0b00100 }, { num: 0b10000 });
         });
     
         test('Right shift assignment', () => {
             const reducer = redcr((state: NumberState) => state.num >>= 2);
-            const oldState: NumberState = { num: 0b100 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0b001 });
-            expect(oldState).toEqual({ num: 0b100 });
+            testReducer(reducer, { num: 0b100 }, { num: 0b001 });
         });
         
         test('Unsigned right shift assignment', () => {
             const reducer = redcr((state: NumberState) => state.num >>>= 0);
-            const oldState: NumberState = { num: -1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0xFFFFFFFF });
-            expect(oldState).toEqual({ num: -1 });
+            testReducer(reducer, { num: -1 }, { num: 0xFFFFFFFF });
         });
     })
 
     describe('Bitwise assignment', () => {
         test('Bitwise AND assignment', () => {
             const reducer = redcr((state: NumberState) => state.num &= 0b100);
-            const oldState: NumberState = { num: 0b101 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0b100 });
-            expect(oldState).toEqual({ num: 0b101 });
+            testReducer(reducer, { num: 0b101 }, { num: 0b100 });
         });
         
         test('Bitwise XOR assignment', () => {
             const reducer = redcr((state: NumberState) => state.num ^= 0b101);
-            const oldState: NumberState = { num: 0b100 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0b001 });
-            expect(oldState).toEqual({ num: 0b100 });
+            testReducer(reducer, { num: 0b100 }, { num: 0b001 });
         });
         
         test('Bitwise OR assignment', () => {
             const reducer = redcr((state: NumberState) => state.num |= 0b001);
-            const oldState: NumberState = { num: 0b100 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0b101 });
-            expect(oldState).toEqual({ num: 0b100 });
+            testReducer(reducer, { num: 0b100 }, { num: 0b101 });
         });
     })
     
     describe('Logical AND assignment', () => {
         test('LHS truthy', () => {
             const reducer = redcr((state: NumberState) => state.num &&= 3);
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 3 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 3 });
         });
     
         test('LHS falsy', () => {
             const reducer = redcr((state: NumberState) => state.num &&= 3);
-            const oldState: NumberState = { num: 0 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 0 });
-            expect(oldState).toEqual({ num: 0 });
+            testReducer(reducer, { num: 0 }, { num: 0 });
         });
     });
 
     describe('Logical OR assignment', () => {
         test('LHS truthy', () => {
             const reducer = redcr((state: NumberState) => state.num ||= 3);
-            const oldState: NumberState = { num: 1 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 1 });
-            expect(oldState).toEqual({ num: 1 });
+            testReducer(reducer, { num: 1 }, { num: 1 });
         });
     
         test('LHS falsy', () => {
             const reducer = redcr((state: NumberState) => state.num ||= 3);
-            const oldState: NumberState = { num: 0 };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ num: 3 });
-            expect(oldState).toEqual({ num: 0 });
+            testReducer(reducer, { num: 0 }, { num: 3 });
         });
     });
 
     describe('Logical nullish assignment', () => {
         test('Existing value is null', () => {
             const reducer = redcr((state: NullableStringState) => state.str ??= 'new');
-            const oldState: NullableStringState = { str: null };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({ str: null });
+            testReducer(reducer, { str: null }, { str: 'new' });
         });
 
         test('Existing value is undefined', () => {
             const reducer = redcr((state: OptionalStringState) => state.str ??= 'new');
-            const oldState: OptionalStringState = {};
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'new' });
-            expect(oldState).toEqual({});
+            testReducer(reducer, {}, { str: 'new' });
         });
 
         test('Existing value is not null or undefined', () => {
             const reducer = redcr((state: OptionalStringState) => state.str ??= 'new');
-            const oldState: OptionalStringState = { str: 'old' };
-            const newState = reducer(oldState);
-        
-            expect(newState).toEqual({ str: 'old' });
-            expect(oldState).toEqual({ str: 'old' });
+            testReducer(reducer, { str: 'old' }, { str: 'old' });
         });
     });
 });
