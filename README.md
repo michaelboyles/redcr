@@ -1,4 +1,4 @@
-[![Build status](https://img.shields.io/github/workflow/status/michaelboyles/redcr/Build%20with%20npm)](https://github.com/michaelboyles/redcr/actions)
+[![Build status](https://img.shields.io/github/actions/workflow/status/michaelboyles/redcr/build.yml?branch=develop)](https://github.com/michaelboyles/redcr/actions)
 [![NPM release](https://img.shields.io/npm/v/redcr)](https://www.npmjs.com/package/redcr)
 [![License](https://img.shields.io/github/license/michaelboyles/redcr)](https://github.com/michaelboyles/redcr/blob/develop/LICENSE)
 
